@@ -1,0 +1,31 @@
+{
+  "name": "@acpilot/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest --run",
+    "test:run": "vitest --run"
+  },
+  "dependencies": {
+    "@acpilot/shared": "workspace:*",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@zed-industries/claude-agent-acp": "^0.20.1",
+    "@zed-industries/codex-acp": "^0.9.5",
+    "fastify": "^5.2.1",
+    "nanoid": "^5.1.5",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/ws": "^8.5.14",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

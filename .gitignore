@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+coverage/
+.nyc_output/
+.vite/
+*.tsbuildinfo
+
+# Private project content
+docs/
+imgs/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime/temp files
+tmp/
+temp/
+.tmp/
+*.pid
+*.pid.lock
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor/OS files
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
