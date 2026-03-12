@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthState } from '@acpilot/shared';
 import { AppShell } from './components/layout/AppShell.js';
-import { NewSessionFlow } from './components/session/NewSessionFlow.js';
 import { useWebSocket } from './hooks/useWebSocket.js';
 import {
   completePairing,
@@ -222,7 +221,20 @@ export default function App() {
     const currentSession = sessions.find((session) => session.id === currentSessionId);
 
     if (!currentSessionId) {
-      return <NewSessionFlow />;
+      return (
+        <AppShell
+          mode="home"
+          onReconnect={reconnectNow}
+          onForgetDevice={() => {
+            void forgetCurrentDevice();
+          }}
+          onSend={async () => {
+            // Placeholder: This should create a session using selected CLI/Model
+            console.log('Home input sent - session creation logic needed');
+          }}
+          onCancel={() => {}}
+        />
+      );
     }
 
     if (currentSession?.status === 'closed' || currentSession?.status === 'error') {
