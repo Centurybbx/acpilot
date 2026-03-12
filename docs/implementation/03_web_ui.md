@@ -77,9 +77,10 @@ function useWebSocket() {
 ### 3.2A 首次配对入口 (`App.tsx` / `components/auth/*`)
 
 - 若 `GET /auth/state` 返回未配对：
-  1. 展示一次性配对页
-  2. 输入 6 位配对码或完成本机确认
-  3. 配对成功后写入长期设备会话并自动进入主界面
+  1. 展示配对申请页
+  2. 提示用户去 daemon 终端查看 6 位配对码
+  3. 在页面输入终端里的配对码
+  4. 配对成功后写入长期设备会话并自动进入主界面
 - 若已配对：直接进入主界面，不展示 token 输入页
 
 ### 3.3 AppShell 布局 (`components/layout/AppShell.tsx`)

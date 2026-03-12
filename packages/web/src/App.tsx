@@ -28,21 +28,22 @@ interface PairingGateProps {
 function PairingGate({ authState, onPaired }: PairingGateProps) {
   const [deviceName, setDeviceName] = useState('My Phone');
   const [challengeId, setChallengeId] = useState<string | null>(null);
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [inputCode, setInputCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canStartPairing = authState.bootstrapRequired;
+  const isBootstrap = authState.trustedDeviceCount === 0;
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-lg flex-col justify-center gap-4 px-4">
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-slate-900">Pair This Device</h1>
+        <h1 className="text-xl font-semibold text-slate-900">
+          {isBootstrap ? 'Pair This Device' : 'Request Pairing Approval'}
+        </h1>
         <p className="text-sm text-slate-600">
-          {canStartPairing
-            ? 'Create a pairing code once, confirm it on this device, then the browser will stay trusted across daemon restarts.'
-            : 'This daemon already has trusted devices. Start pairing from an existing trusted device or clear the local auth store to bootstrap again.'}
+          {isBootstrap
+            ? 'Generate a pairing request, then enter the 6-digit code shown in the daemon terminal to trust this browser.'
+            : 'This daemon already has trusted devices. Generate a pairing request, then enter the 6-digit code shown in the daemon terminal to add or re-pair this browser.'}
         </p>
       </div>
 
@@ -56,23 +57,20 @@ function PairingGate({ authState, onPaired }: PairingGateProps) {
         />
       </label>
 
-      {generatedCode ? (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-xs font-medium uppercase tracking-[0.2em] text-blue-700">
-            Pairing Code
+      {challengeId ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="text-xs font-medium uppercase tracking-[0.2em] text-amber-700">
+            Check Your Terminal
           </div>
-          <div className="mt-2 text-3xl font-semibold tracking-[0.35em] text-blue-950">
-            {generatedCode}
-          </div>
-          <p className="mt-2 text-sm text-blue-900">
-            Re-enter the code below to confirm pairing on this browser.
+          <p className="mt-2 text-sm text-amber-900">
+            A 6-digit pairing code has been printed in the daemon&apos;s terminal. Enter it below to trust this browser.
           </p>
         </div>
       ) : null}
 
       {challengeId ? (
         <label className="grid gap-1 text-sm text-slate-700">
-          <span>Confirm Code</span>
+          <span>Pairing Code</span>
           <input
             value={inputCode}
             onChange={(event) => setInputCode(event.target.value)}
@@ -88,14 +86,13 @@ function PairingGate({ authState, onPaired }: PairingGateProps) {
       {!challengeId ? (
         <button
           type="button"
-          disabled={!canStartPairing || submitting}
+          disabled={submitting}
           onClick={async () => {
             setSubmitting(true);
             setError(null);
             try {
               const challenge = await startPairing(deviceName.trim() || undefined);
               setChallengeId(challenge.challengeId);
-              setGeneratedCode(challenge.code);
               setInputCode('');
             } catch (err) {
               setError((err as Error).message);
@@ -105,7 +102,9 @@ function PairingGate({ authState, onPaired }: PairingGateProps) {
           }}
           className="rounded-xl bg-app-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
         >
-          {submitting ? 'Generating...' : 'Generate Pairing Code'}
+          {submitting
+            ? 'Generating...'
+            : 'Generate Pairing Code'}
         </button>
       ) : (
         <button

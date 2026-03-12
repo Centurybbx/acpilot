@@ -249,20 +249,26 @@ export async function createServer(
     {
       config: { rateLimit: { max: 5, timeWindow: '1 minute' } }
     },
-    async (request, reply) => {
-      const trustedDeviceCount = await authManager.getTrustedDeviceCount();
-      if (trustedDeviceCount > 0) {
-        const verified = await verifyCurrentDevice(request);
-        if (!verified.valid) {
-          reply.code(403);
-          return responseError('pairing requires a trusted device');
-        }
-      }
-
+    async (request) => {
       const challenge = await authManager.createPairingChallenge(
         request.body?.deviceName
       );
-      return responseOk<PairingChallenge>(challenge);
+      const expiresInSec = Math.round((challenge.expiresAt - Date.now()) / 1000);
+      const requestedDeviceName = (
+        request.body?.deviceName?.trim() || 'unnamed device'
+      ).replace(/\s+/g, ' ');
+      app.log.info(
+        `\n══════════════════════════════════════════════\n` +
+        `  PAIRING CODE: ${challenge.code}\n` +
+        `  Request IP: ${request.ip}\n` +
+        `  Device Name: ${requestedDeviceName}\n` +
+        `  Expires in ${expiresInSec} seconds.\n` +
+        `══════════════════════════════════════════════`
+      );
+      return responseOk<PairingChallenge>({
+        challengeId: challenge.challengeId,
+        expiresAt: challenge.expiresAt
+      });
     }
   );
 
@@ -274,20 +280,12 @@ export async function createServer(
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } }
     },
     async (request, reply) => {
-      const trustedDeviceCount = await authManager.getTrustedDeviceCount();
-      if (trustedDeviceCount > 0) {
-        const verified = await verifyCurrentDevice(request);
-        if (!verified.valid) {
-          reply.code(403);
-          return responseError('pairing requires a trusted device');
-        }
-      }
-
       const { challengeId, code, deviceName } = request.body ?? {};
       if (!challengeId || !code) {
         reply.code(400);
         return responseError('challengeId and code are required');
       }
+
       try {
         const completion = await authManager.completePairing(
           challengeId,

@@ -3,7 +3,6 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   AuthState,
-  PairingChallenge,
   TrustedDevice
 } from '@acpilot/shared';
 
@@ -16,7 +15,16 @@ interface AuthStoreData {
   devices: StoredDevice[];
 }
 
-interface PendingPairingChallenge extends PairingChallenge {
+export interface ChallengeResult {
+  challengeId: string;
+  code: string;
+  expiresAt: number;
+}
+
+interface PendingPairingChallenge {
+  challengeId: string;
+  code: string;
+  expiresAt: number;
   deviceName?: string;
 }
 
@@ -80,8 +88,9 @@ export class DeviceAuthManager {
     return store.devices.filter((device) => !device.revokedAt).length;
   }
 
-  async createPairingChallenge(deviceName?: string): Promise<PairingChallenge> {
+  async createPairingChallenge(deviceName?: string): Promise<ChallengeResult> {
     this.cleanupExpiredChallenges();
+    this.challenges.clear();
     const challenge: PendingPairingChallenge = {
       challengeId: crypto.randomUUID(),
       code: String(crypto.randomInt(0, 1_000_000)).padStart(6, '0'),
@@ -94,6 +103,11 @@ export class DeviceAuthManager {
       code: challenge.code,
       expiresAt: challenge.expiresAt
     };
+  }
+
+  /** Retrieve the code for a pending challenge. Intended for testing. */
+  getChallengeCode(challengeId: string): string | undefined {
+    return this.challenges.get(challengeId)?.code;
   }
 
   async completePairing(

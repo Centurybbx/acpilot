@@ -33,7 +33,6 @@ export type AuthState =
 
 export interface PairingChallenge {
   challengeId: string;
-  code: string;
   expiresAt: number;
 }
 

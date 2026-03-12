@@ -8,7 +8,7 @@
 
 ### 2.1 一次配对式认证 (`src/auth/*`)
 
-MVP 认证主路径改为“首次配对一次，后续长期信任设备”：
+MVP 认证主路径改为“终端批准一次，后续长期信任设备”：
 
 ```ts
 interface TrustedDevice {
@@ -28,7 +28,8 @@ function verifyDeviceSession(deviceId: string, deviceSecret: string): Promise<{ 
 ```
 
 - daemon 持久化服务端密钥与 trusted device store，保证 daemon 重启后信任关系不丢失
-- 首次无设备时进入 bootstrap 配对模式；成功后浏览器获得长期会话
+- 所有设备配对都通过 daemon 终端上的一次性 6 位码批准；浏览器不再直接收到配对码
+- 每次创建新 challenge 时废弃旧 challenge，避免多个有效配对码并存
 - Fastify 中间件：除 `/healthz` 与首次配对端点外，其余路由都要求设备已信任
 - HTTP 与 WS 共用同一认证态，不再把长期凭证放进 URL query
 
@@ -207,7 +208,7 @@ class WsHandler {
 
 ## 完成标准
 
-- 启动 daemon 且无 trusted device 时，可完成首次配对
+- 启动 daemon 后，无论首次配对还是新增设备，都可通过终端里的 6 位码完成配对
 - 已配对设备调用 `GET /agents` 返回三个 Agent 定义
 - 未配对设备调用核心接口返回 401
 - `POST /sessions` 指定 Codex，能成功启动子进程并返回 session ID（需本机安装 codex-acp）

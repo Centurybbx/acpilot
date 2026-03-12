@@ -7,6 +7,20 @@
       "createdAt": 1773319938477,
       "lastSeenAt": 1773323327591,
       "secretHash": "70f6bc8f8f4273fe3ff225ac7924185a8dd21b2995b807356e0fbed5791df244"
+    },
+    {
+      "id": "c05dc6a0-6fa1-49bb-8301-5635346a8dea",
+      "name": "MacBook",
+      "createdAt": 1773329021497,
+      "lastSeenAt": 1773329026446,
+      "secretHash": "927ef65bb1a52bc4a9947646729f8439b312f2e767edba3d526c228f43c949f0"
+    },
+    {
+      "id": "0e3c8bbb-2833-4b18-9af9-090cec98bcbe",
+      "name": "fuckyou",
+      "createdAt": 1773329054900,
+      "lastSeenAt": 1773329078592,
+      "secretHash": "75ba18fd4516f9b13c54014db548c160e2a65ec7bec72db31f0ebfd6c70308f9"
     }
   ]
 }

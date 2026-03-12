@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createServer } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
+import { DeviceAuthManager } from '../src/auth/device.js';
 
 function createTestConfig() {
   return loadConfig({
@@ -19,7 +20,12 @@ describe('daemon server', () => {
   });
 
   it('bootstraps a trusted device and protects core routes', async () => {
-    const app = await createServer(createTestConfig());
+    const config = createTestConfig();
+    const authManager = new DeviceAuthManager({
+      storePath: config.authStorePath,
+      pairingCodeTtlMs: config.pairingCodeTtlMs
+    });
+    const app = await createServer(config, { authManager });
 
     const health = await app.inject({ method: 'GET', url: '/healthz' });
     expect(health.statusCode).toBe(200);
@@ -42,13 +48,16 @@ describe('daemon server', () => {
     });
     expect(started.statusCode).toBe(200);
     const challenge = started.json().data;
+    expect(challenge.code).toBeUndefined();
+    const code = authManager.getChallengeCode(challenge.challengeId);
+    expect(code).toBeDefined();
 
     const completed = await app.inject({
       method: 'POST',
       url: '/auth/pair/complete',
       payload: {
         challengeId: challenge.challengeId,
-        code: challenge.code,
+        code,
         deviceName: 'Phone'
       }
     });
@@ -71,7 +80,12 @@ describe('daemon server', () => {
   });
 
   it('exposes device auth state, logout, and revoke flows', async () => {
-    const app = await createServer(createTestConfig());
+    const config = createTestConfig();
+    const authManager = new DeviceAuthManager({
+      storePath: config.authStorePath,
+      pairingCodeTtlMs: config.pairingCodeTtlMs
+    });
+    const app = await createServer(config, { authManager });
 
     const started = await app.inject({
       method: 'POST',
@@ -79,12 +93,13 @@ describe('daemon server', () => {
       payload: { deviceName: 'Tablet' }
     });
     const challenge = started.json().data;
+    const code = authManager.getChallengeCode(challenge.challengeId);
     const completed = await app.inject({
       method: 'POST',
       url: '/auth/pair/complete',
       payload: {
         challengeId: challenge.challengeId,
-        code: challenge.code,
+        code,
         deviceName: 'Tablet'
       }
     });
@@ -132,7 +147,215 @@ describe('daemon server', () => {
     await app.close();
   });
 
+  it('allows re-pairing via terminal code when cookies are lost', async () => {
+    const config = createTestConfig();
+    const authManager = new DeviceAuthManager({
+      storePath: config.authStorePath,
+      pairingCodeTtlMs: config.pairingCodeTtlMs
+    });
+    const app = await createServer(config, { authManager });
+
+    // Bootstrap first device
+    const started = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Phone' }
+    });
+    const challenge = started.json().data;
+    const bootstrapCode = authManager.getChallengeCode(challenge.challengeId);
+    await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: challenge.challengeId,
+        code: bootstrapCode,
+        deviceName: 'Phone'
+      }
+    });
+
+    // Simulate a browser that lost its cookies (no cookie header)
+    const recoveryStart = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Phone Recovered' }
+    });
+    expect(recoveryStart.statusCode).toBe(200);
+    const recoveryChallenge = recoveryStart.json().data;
+    expect(recoveryChallenge.code).toBeUndefined();
+    expect(recoveryChallenge.challengeId).toBeDefined();
+
+    // Bad code is rejected
+    const badComplete = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: recoveryChallenge.challengeId,
+        code: '000000',
+        deviceName: 'Phone Recovered'
+      }
+    });
+    expect(badComplete.statusCode).toBe(400);
+
+    // Retrieve the real code from the auth manager (simulates reading terminal)
+    const realCode = authManager.getChallengeCode(recoveryChallenge.challengeId);
+    expect(realCode).toBeDefined();
+
+    // Complete re-pairing with the correct terminal code.
+    const goodComplete = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: recoveryChallenge.challengeId,
+        code: realCode,
+        deviceName: 'Phone Recovered'
+      }
+    });
+    expect(goodComplete.statusCode).toBe(200);
+    expect(goodComplete.json().data.device.name).toBe('Phone Recovered');
+
+    // Verify cookies are set
+    const recoveredCookies = extractCookieHeader(
+      goodComplete.headers['set-cookie'] as string[]
+    );
+    expect(recoveredCookies).toContain('acpilot_device_id=');
+    expect(recoveredCookies).toContain('acpilot_device_secret=');
+
+    // Verify auth state is paired with new cookies
+    const state = await app.inject({
+      method: 'GET',
+      url: '/auth/state',
+      headers: { cookie: recoveredCookies }
+    });
+    expect(state.json().data.paired).toBe(true);
+
+    // Verify protected routes are accessible
+    const agents = await app.inject({
+      method: 'GET',
+      url: '/agents',
+      headers: { cookie: recoveredCookies }
+    });
+    expect(agents.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it('allows unauthenticated pairing for a new device with the current terminal code', async () => {
+    const config = createTestConfig();
+    const authManager = new DeviceAuthManager({
+      storePath: config.authStorePath,
+      pairingCodeTtlMs: config.pairingCodeTtlMs
+    });
+    const app = await createServer(config, { authManager });
+
+    // Bootstrap first device
+    const started = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Phone' }
+    });
+    const challenge = started.json().data;
+    const bootstrapCode = authManager.getChallengeCode(challenge.challengeId);
+    const completed = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: challenge.challengeId,
+        code: bootstrapCode,
+        deviceName: 'Phone'
+      }
+    });
+    const cookieHeader = extractCookieHeader(
+      completed.headers['set-cookie'] as string[]
+    );
+
+    // Any browser can start a new terminal-approved pairing request.
+    const secondStart = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Tablet' }
+    });
+    expect(secondStart.statusCode).toBe(200);
+    const secondChallenge = secondStart.json().data;
+    const secondCode = authManager.getChallengeCode(secondChallenge.challengeId);
+    expect(secondCode).toBeDefined();
+
+    const unauthComplete = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: secondChallenge.challengeId,
+        code: secondCode,
+        deviceName: 'Tablet'
+      }
+    });
+    expect(unauthComplete.statusCode).toBe(200);
+    expect(unauthComplete.json().data.device.name).toBe('Tablet');
+
+    const allDevices = await app.inject({
+      method: 'GET',
+      url: '/auth/devices',
+      headers: { cookie: cookieHeader }
+    });
+    expect(allDevices.json().data).toHaveLength(2);
+
+    await app.close();
+  });
+
+  it('invalidates older pairing challenges when a new request is created', async () => {
+    const config = createTestConfig();
+    const authManager = new DeviceAuthManager({
+      storePath: config.authStorePath,
+      pairingCodeTtlMs: config.pairingCodeTtlMs
+    });
+    const app = await createServer(config, { authManager });
+
+    const firstStart = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'First Phone' }
+    });
+    const firstChallenge = firstStart.json().data;
+    const firstCode = authManager.getChallengeCode(firstChallenge.challengeId);
+
+    const secondStart = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Second Phone' }
+    });
+    const secondChallenge = secondStart.json().data;
+    const secondCode = authManager.getChallengeCode(secondChallenge.challengeId);
+
+    const firstComplete = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: firstChallenge.challengeId,
+        code: firstCode,
+        deviceName: 'First Phone'
+      }
+    });
+    expect(firstComplete.statusCode).toBe(400);
+
+    const secondComplete = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: secondChallenge.challengeId,
+        code: secondCode,
+        deviceName: 'Second Phone'
+      }
+    });
+    expect(secondComplete.statusCode).toBe(200);
+
+    await app.close();
+  });
+
   it('delegates session endpoints to session manager for trusted devices', async () => {
+    const config = createTestConfig();
+    const authManager = new DeviceAuthManager({
+      storePath: config.authStorePath,
+      pairingCodeTtlMs: config.pairingCodeTtlMs
+    });
     const mockSession = {
       id: 's1',
       agentId: 'codex',
@@ -158,7 +381,8 @@ describe('daemon server', () => {
       listActive: vi.fn().mockReturnValue([mockSession])
     };
 
-    const app = await createServer(createTestConfig(), {
+    const app = await createServer(config, {
+      authManager,
       sessionManager: sessionManager as never
     });
 
@@ -168,12 +392,13 @@ describe('daemon server', () => {
       payload: { deviceName: 'Laptop' }
     });
     const challenge = started.json().data;
+    const code = authManager.getChallengeCode(challenge.challengeId);
     const completed = await app.inject({
       method: 'POST',
       url: '/auth/pair/complete',
       payload: {
         challengeId: challenge.challengeId,
-        code: challenge.code,
+        code,
         deviceName: 'Laptop'
       }
     });
