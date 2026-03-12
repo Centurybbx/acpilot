@@ -43,9 +43,15 @@ tailscale ip -4
 http://<tailscale-ip>:5173
 ```
 
-## Token 使用说明
-- 在 Web 首屏粘贴 daemon 启动日志里的 `Initial token: <token>`。
+## 当前临时认证方式
+- 当前实现仍使用启动时打印的 `Initial token: <token>` 进入 Web。
 - 输入纯 token 字符串，不要加 `Bearer ` 前缀。
+- 浏览器会在当前会话内记住该 token，但 daemon 重启后 token 会失效。
+
+## 后续认证方向（已调整设计）
+- 认证目标改为“首次配对一次，后续长期可用”，不再要求频繁手动粘贴 token。
+- 计划改成：手机首次输入一次配对码，daemon 为该设备签发长期信任凭证，后续通过持久 cookie 或设备凭证自动登录。
+- daemon 需要把本机认证密钥和已信任设备列表持久化到磁盘，否则重启后仍会丢失信任关系。
 
 ## Agent 环境准备（端到端会话必需）
 
