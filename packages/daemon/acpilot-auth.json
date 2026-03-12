@@ -1,0 +1,12 @@
+{
+  "authSecret": "f5e94cbfb8e0fa5c42486eeb6fd8f3a7abb3a69e238f0370588518abfe73a887",
+  "devices": [
+    {
+      "id": "4abda514-8ffb-4966-aeba-ccddb8e97321",
+      "name": "My Phone",
+      "createdAt": 1773319938477,
+      "lastSeenAt": 1773321419672,
+      "secretHash": "70f6bc8f8f4273fe3ff225ac7924185a8dd21b2995b807356e0fbed5791df244"
+    }
+  ]
+}

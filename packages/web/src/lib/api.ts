@@ -3,6 +3,7 @@ import type {
   AuthState,
   PairingChallenge,
   PairingCompletion,
+  SessionConfig,
   Session,
   TrustedDevice,
   WsClientMessage
@@ -93,11 +94,12 @@ export async function createSession(payload: {
 
 export async function sendPrompt(
   sessionId: string,
-  prompt: string
+  prompt: string,
+  config?: SessionConfig
 ): Promise<{ accepted: boolean }> {
   return requestJson<{ accepted: boolean }>(`/sessions/${sessionId}/prompt`, {
     method: 'POST',
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify({ prompt, config })
   });
 }
 

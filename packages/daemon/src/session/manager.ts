@@ -2,6 +2,8 @@ import { nanoid } from 'nanoid';
 import type {
   AcpEvent,
   AgentCapabilities,
+  SessionConfig,
+  SessionConfigValue,
   Session,
   SessionStatus,
   ToolCallInfo,
@@ -16,6 +18,8 @@ export interface AcpBridgeLike {
   initialize(): Promise<AgentCapabilities>;
   sessionNew(cwd: string, config?: object): Promise<{ sessionId: string }>;
   sessionPrompt(sessionId: string, prompt: string): Promise<void>;
+  sessionSetConfigOption(sessionId: string, name: string, value: SessionConfigValue): Promise<void>;
+  sessionSetMode(sessionId: string, mode: string): Promise<void>;
   sessionCancel(sessionId: string): Promise<void>;
   respondPermission?(requestId: string, approved: boolean): Promise<void>;
   request(method: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -88,6 +92,8 @@ export class SessionManager {
 
     const capabilities = await this.getRuntimeCapabilities(agentId, runtime);
     const remote = await runtime.bridge.sessionNew(cwd, {});
+    const config = this.buildDefaultConfig(capabilities);
+    await this.applyConfigDiff(runtime.bridge, remote.sessionId, capabilities, {}, config);
     const id = nanoid();
     const now = Date.now();
     const session: SessionRecord = {
@@ -97,6 +103,7 @@ export class SessionManager {
       workspaceType,
       status: 'active',
       capabilities,
+      config,
       eventSeq: 0,
       createdAt: now,
       lastActiveAt: now,
@@ -118,8 +125,17 @@ export class SessionManager {
     return this.toSession(session);
   }
 
-  async prompt(sessionId: string, prompt: string): Promise<void> {
+  async prompt(sessionId: string, prompt: string, config: SessionConfig = {}): Promise<void> {
     const session = this.getRecord(sessionId);
+    const nextConfig = this.mergeConfig(session.capabilities, session.config, config);
+    await this.applyConfigDiff(
+      session.runtime.bridge,
+      session.remoteSessionId,
+      session.capabilities,
+      session.config,
+      nextConfig
+    );
+    session.config = nextConfig;
     await session.runtime.bridge.sessionPrompt(session.remoteSessionId, prompt);
     session.lastActiveAt = Date.now();
   }
@@ -392,8 +408,101 @@ export class SessionManager {
     return session;
   }
 
+  private buildDefaultConfig(capabilities: AgentCapabilities): SessionConfig {
+    const config: SessionConfig = {};
+
+    for (const option of capabilities.configOptions ?? []) {
+      if (option.type === 'boolean') {
+        config[option.name] = false;
+        continue;
+      }
+
+      const fallback = option.default ?? option.values?.[0];
+      if (fallback !== undefined) {
+        config[option.name] = fallback;
+      }
+    }
+
+    if (capabilities.modes?.length && config.mode === undefined) {
+      config.mode = capabilities.modes[0]?.name ?? 'default';
+    }
+
+    return config;
+  }
+
+  private mergeConfig(
+    capabilities: AgentCapabilities,
+    currentConfig: SessionConfig,
+    nextConfig: SessionConfig
+  ): SessionConfig {
+    const merged = { ...currentConfig };
+    for (const [name, value] of Object.entries(nextConfig)) {
+      merged[name] = this.normalizeConfigValue(capabilities, name, value);
+    }
+    return merged;
+  }
+
+  private normalizeConfigValue(
+    capabilities: AgentCapabilities,
+    name: string,
+    value: SessionConfigValue
+  ): SessionConfigValue {
+    const option = capabilities.configOptions?.find((item) => item.name === name);
+    if (option) {
+      if (option.type === 'boolean') {
+        return Boolean(value);
+      }
+      if (typeof value !== 'string') {
+        throw new Error(`config option "${name}" expects a string value`);
+      }
+      if (option.type === 'enum' && option.values?.length && !option.values.includes(value)) {
+        throw new Error(`config option "${name}" must be one of: ${option.values.join(', ')}`);
+      }
+      return value;
+    }
+
+    if (name === 'mode' && capabilities.modes?.length) {
+      if (typeof value !== 'string') {
+        throw new Error('mode expects a string value');
+      }
+      if (!capabilities.modes.some((mode) => mode.name === value)) {
+        throw new Error(`mode must be one of: ${capabilities.modes.map((mode) => mode.name).join(', ')}`);
+      }
+      return value;
+    }
+
+    throw new Error(`unknown config option "${name}"`);
+  }
+
+  private async applyConfigDiff(
+    bridge: AcpBridgeLike,
+    remoteSessionId: string,
+    capabilities: AgentCapabilities,
+    currentConfig: SessionConfig,
+    nextConfig: SessionConfig
+  ): Promise<void> {
+    for (const [name, value] of Object.entries(nextConfig)) {
+      if (currentConfig[name] === value) {
+        continue;
+      }
+
+      const option = capabilities.configOptions?.find((item) => item.name === name);
+      if (option) {
+        await bridge.sessionSetConfigOption(remoteSessionId, name, value);
+        continue;
+      }
+
+      if (name === 'mode' && capabilities.modes?.length && typeof value === 'string') {
+        await bridge.sessionSetMode(remoteSessionId, value);
+      }
+    }
+  }
+
   private toSession(session: SessionRecord): Session {
     const { remoteSessionId: _remoteSessionId, runtime: _runtime, ...rest } = session;
-    return { ...rest };
+    return {
+      ...rest,
+      config: { ...rest.config }
+    };
   }
 }

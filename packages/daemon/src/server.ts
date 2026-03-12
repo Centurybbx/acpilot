@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import type {
   ApiResponse,
   PairingChallenge,
+  SessionConfig,
   TrustedDevice
 } from '@acpilot/shared';
 import { getAgents } from './agent/registry.js';
@@ -29,7 +30,7 @@ interface SessionManagerLike {
     cwd: string,
     workspaceType: 'local' | 'worktree'
   ): Promise<unknown>;
-  prompt(sessionId: string, prompt: string): Promise<void>;
+  prompt(sessionId: string, prompt: string, config?: SessionConfig): Promise<void>;
   cancel(sessionId: string): Promise<void>;
   getLogs(sessionId: string): string[];
   getEventLog(): EventLog;
@@ -349,7 +350,7 @@ export async function createServer(
     }
   );
 
-  app.post<{ Params: { id: string }; Body: { prompt: string } }>(
+  app.post<{ Params: { id: string }; Body: { prompt: string; config?: SessionConfig } }>(
     '/sessions/:id/prompt',
     {
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } }
@@ -361,7 +362,7 @@ export async function createServer(
         return responseError('prompt is required');
       }
       try {
-        await sessionManager.prompt(request.params.id, prompt);
+        await sessionManager.prompt(request.params.id, prompt, request.body?.config ?? {});
         return responseOk({ accepted: true });
       } catch (error) {
         reply.code(500);

@@ -11,9 +11,12 @@ interface ChatInputProps {
 
 export function ChatInput({ onSend, onCancel }: ChatInputProps) {
   const [value, setValue] = useState('');
-  const [configValues, setConfigValues] = useState<Record<string, string | boolean>>({});
 
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
+  const sessionConfig = useSessionStore((state) =>
+    state.sessions.find((session) => session.id === state.currentSessionId)?.config ?? {}
+  );
+  const updateSessionConfig = useSessionStore((state) => state.updateSessionConfig);
   const capabilities = useAgentsStore((state) =>
     currentSessionId ? state.capabilities.get(currentSessionId) : undefined
   );
@@ -58,9 +61,9 @@ export function ChatInput({ onSend, onCancel }: ChatInputProps) {
       <div className="mt-2">
         <DynamicControls
           capabilities={normalizedCapabilities}
-          values={configValues}
+          values={sessionConfig}
           onChange={(name, nextValue) => {
-            setConfigValues((prev) => ({ ...prev, [name]: nextValue }));
+            updateSessionConfig({ [name]: nextValue });
           }}
         />
       </div>

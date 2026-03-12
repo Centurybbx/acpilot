@@ -61,6 +61,7 @@ describe('useWebSocket', () => {
           workspaceType: 'local',
           status: 'active',
           capabilities: {},
+          config: {},
           eventSeq: 2,
           createdAt: Date.now(),
           lastActiveAt: Date.now()

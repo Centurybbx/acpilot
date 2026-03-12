@@ -56,6 +56,7 @@ describe('daemon server', () => {
             workspaceType: 'local',
             status: 'active',
             capabilities: {},
+            config: { model: 'gpt-5' },
             eventSeq: 0,
             createdAt: Date.now(),
             lastActiveAt: Date.now()
@@ -84,10 +85,10 @@ describe('daemon server', () => {
             method: 'POST',
             url: '/sessions/s1/prompt',
             headers: { authorization: `Bearer ${token}` },
-            payload: { prompt: 'hello' }
+            payload: { prompt: 'hello', config: { model: 'gpt-4.1' } }
         });
         expect(prompted.statusCode).toBe(200);
-        expect(sessionManager.prompt).toHaveBeenCalledWith('s1', 'hello');
+        expect(sessionManager.prompt).toHaveBeenCalledWith('s1', 'hello', { model: 'gpt-4.1' });
         const canceled = await app.inject({
             method: 'POST',
             url: '/sessions/s1/cancel',

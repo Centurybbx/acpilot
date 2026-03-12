@@ -3,7 +3,11 @@ import { EventLog } from '../src/session/event-log.js';
 import { SessionManager } from '../src/session/manager.js';
 function makeRuntime() {
     const capabilities = {
-        configOptions: [{ name: 'model', type: 'enum', values: ['gpt-5'] }],
+        configOptions: [
+            { name: 'model', type: 'enum', values: ['gpt-5', 'gpt-4.1'] },
+            { name: 'search', type: 'boolean' }
+        ],
+        modes: [{ name: 'auto' }, { name: 'manual' }],
         commands: [{ name: 'fix' }]
     };
     const runtime = {
@@ -11,6 +15,8 @@ function makeRuntime() {
             initialize: vi.fn().mockResolvedValue(capabilities),
             sessionNew: vi.fn().mockResolvedValue({ sessionId: 'remote-session-1' }),
             sessionPrompt: vi.fn().mockResolvedValue(undefined),
+            sessionSetConfigOption: vi.fn().mockResolvedValue(undefined),
+            sessionSetMode: vi.fn().mockResolvedValue(undefined),
             sessionCancel: vi.fn().mockResolvedValue(undefined),
             request: vi.fn().mockResolvedValue({ jsonrpc: '2.0', id: 1 }),
             onEvent: vi.fn(),
@@ -43,10 +49,21 @@ describe('session manager', () => {
         const session = await manager.create('codex', '/tmp/project', 'local');
         expect(session.agentId).toBe('codex');
         expect(session.status).toBe('active');
+        expect(session.config).toEqual({ model: 'gpt-5', search: false, mode: 'auto' });
         expect(runtime.bridge.initialize).toHaveBeenCalled();
         expect(runtime.bridge.sessionNew).toHaveBeenCalledWith('/tmp/project', {});
-        await manager.prompt(session.id, 'hello');
+        expect(runtime.bridge.sessionSetConfigOption).toHaveBeenCalledWith('remote-session-1', 'model', 'gpt-5');
+        expect(runtime.bridge.sessionSetConfigOption).toHaveBeenCalledWith('remote-session-1', 'search', false);
+        expect(runtime.bridge.sessionSetMode).toHaveBeenCalledWith('remote-session-1', 'auto');
+        await manager.prompt(session.id, 'hello', {
+            model: 'gpt-4.1',
+            search: true,
+            mode: 'manual'
+        });
         expect(runtime.bridge.sessionPrompt).toHaveBeenCalledWith('remote-session-1', 'hello');
+        expect(runtime.bridge.sessionSetConfigOption).toHaveBeenCalledWith('remote-session-1', 'model', 'gpt-4.1');
+        expect(runtime.bridge.sessionSetConfigOption).toHaveBeenCalledWith('remote-session-1', 'search', true);
+        expect(runtime.bridge.sessionSetMode).toHaveBeenCalledWith('remote-session-1', 'manual');
         await manager.handlePermissionResponse(session.id, 'perm-1', true);
         expect(runtime.bridge.request).toHaveBeenCalledWith('permission/response', {
             sessionId: 'remote-session-1',

@@ -141,6 +141,25 @@ export class AcpBridge {
     });
   }
 
+  async sessionSetConfigOption(
+    sessionId: string,
+    name: string,
+    value: string | boolean
+  ): Promise<void> {
+    await this.request('session/set_config_option', {
+      sessionId,
+      name,
+      value
+    });
+  }
+
+  async sessionSetMode(sessionId: string, mode: string): Promise<void> {
+    await this.request('session/set_mode', {
+      sessionId,
+      mode
+    });
+  }
+
   async sessionCancel(sessionId: string): Promise<void> {
     this.notify('session/cancel', { sessionId });
   }

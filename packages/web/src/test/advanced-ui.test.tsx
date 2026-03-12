@@ -18,6 +18,7 @@ describe('advanced ui behaviors', () => {
           workspaceType: 'local',
           status: 'active',
           capabilities: {},
+          config: {},
           eventSeq: 0,
           createdAt: Date.now(),
           lastActiveAt: Date.now()

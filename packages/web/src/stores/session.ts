@@ -1,5 +1,6 @@
 import type {
   PermissionRequest,
+  SessionConfig,
   Session,
   ToolCallInfo,
   WsMessage
@@ -42,6 +43,7 @@ interface SessionStore {
   ) => Promise<void>;
   sendPrompt: (prompt: string) => Promise<void>;
   cancelPrompt: () => Promise<void>;
+  updateSessionConfig: (config: SessionConfig) => void;
   respondPermission: (
     requestId: string,
     approved: boolean
@@ -92,12 +94,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   sendPrompt: async (prompt) => {
-    const { currentSessionId } = get();
+    const { currentSessionId, sessions } = get();
     if (!currentSessionId) {
       throw new Error('No active session');
     }
+    const session = sessions.find((item) => item.id === currentSessionId);
     get().appendUserMessage(currentSessionId, prompt);
-    await sendPrompt(currentSessionId, prompt);
+    await sendPrompt(currentSessionId, prompt, session?.config ?? {});
   },
 
   cancelPrompt: async () => {
@@ -106,6 +109,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return;
     }
     await cancelPrompt(currentSessionId);
+  },
+
+  updateSessionConfig: (config) => {
+    const { currentSessionId } = get();
+    if (!currentSessionId) {
+      return;
+    }
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === currentSessionId
+          ? {
+              ...session,
+              config: {
+                ...session.config,
+                ...config
+              }
+            }
+          : session
+      )
+    }));
   },
 
   respondPermission: (requestId, approved) => {

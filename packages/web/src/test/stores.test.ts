@@ -46,6 +46,7 @@ describe('stores', () => {
             workspaceType: 'local',
             status: 'active',
             capabilities: {},
+            config: { model: 'gpt-5' },
             eventSeq: 0,
             createdAt: Date.now(),
             lastActiveAt: Date.now()
@@ -60,6 +61,7 @@ describe('stores', () => {
 
     await useSessionStore.getState().createSession('codex', '/tmp/project', 'local');
     expect(useSessionStore.getState().currentSessionId).toBe('s1');
+    useSessionStore.getState().updateSessionConfig({ model: 'gpt-4.1' });
 
     await useSessionStore.getState().sendPrompt('hello');
 
@@ -67,7 +69,8 @@ describe('stores', () => {
       2,
       '/sessions/s1/prompt',
       expect.objectContaining({
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify({ prompt: 'hello', config: { model: 'gpt-4.1' } })
       })
     );
   });
