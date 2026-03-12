@@ -33,11 +33,17 @@ describe('ws handler', () => {
 
     const handler = new WsHandler({
       sessionManager: manager as never,
-      verifyToken: () => ({ valid: true, expired: false })
+      verifySession: vi.fn().mockResolvedValue({ valid: true, revoked: false })
     });
 
     const ws = new FakeSocket();
-    handler.handleConnection(ws as never, { url: '/ws?token=abc' } as never);
+    handler.handleConnection(
+      ws as never,
+      {
+        headers: { cookie: 'acpilot_device_id=device-1; acpilot_device_secret=secret-1' }
+      } as never
+    );
+    await Promise.resolve();
 
     ws.emit('message', JSON.stringify({ type: 'session:resume', sessionId: 's1', lastSeq: 0 }));
     await Promise.resolve();
@@ -59,11 +65,17 @@ describe('ws handler', () => {
 
     const handler = new WsHandler({
       sessionManager: manager as never,
-      verifyToken: () => ({ valid: true, expired: false })
+      verifySession: vi.fn().mockResolvedValue({ valid: true, revoked: false })
     });
 
     const ws = new FakeSocket();
-    handler.handleConnection(ws as never, { url: '/ws?token=abc' } as never);
+    handler.handleConnection(
+      ws as never,
+      {
+        headers: { cookie: 'acpilot_device_id=device-1; acpilot_device_secret=secret-1' }
+      } as never
+    );
+    await Promise.resolve();
 
     ws.emit(
       'message',
@@ -88,11 +100,17 @@ describe('ws handler', () => {
 
     const handler = new WsHandler({
       sessionManager: manager as never,
-      verifyToken: () => ({ valid: true, expired: false })
+      verifySession: vi.fn().mockResolvedValue({ valid: true, revoked: false })
     });
 
     const ws = new FakeSocket();
-    handler.handleConnection(ws as never, { url: '/ws?token=abc' } as never);
+    handler.handleConnection(
+      ws as never,
+      {
+        headers: { cookie: 'acpilot_device_id=device-1; acpilot_device_secret=secret-1' }
+      } as never
+    );
+    await Promise.resolve();
 
     ws.emit(
       'message',

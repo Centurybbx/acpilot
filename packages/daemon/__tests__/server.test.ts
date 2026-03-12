@@ -1,66 +1,138 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generateToken } from '../src/auth/token.js';
 import { createServer } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
 
-describe('daemon server', () => {
-  const config = loadConfig({
-    ACPILOT_TOKEN_SECRET: 'server-secret',
+function createTestConfig() {
+  return loadConfig({
+    ACPILOT_AUTH_STORE_PATH: `/tmp/acpilot-auth-test-${Date.now()}-${Math.random()}.json`,
     ACPILOT_AUDIT_LOG_PATH: '/tmp/acpilot-audit-test.log'
   });
+}
 
+function extractCookieHeader(setCookie: string[]): string {
+  return setCookie.map((cookie) => cookie.split(';', 1)[0]).join('; ');
+}
+
+describe('daemon server', () => {
   afterEach(async () => {
     vi.restoreAllMocks();
   });
 
-  it('allows /healthz without token and protects other routes', async () => {
-    const app = await createServer(config);
+  it('bootstraps a trusted device and protects core routes', async () => {
+    const app = await createServer(createTestConfig());
 
     const health = await app.inject({ method: 'GET', url: '/healthz' });
     expect(health.statusCode).toBe(200);
 
+    const beforePairing = await app.inject({ method: 'GET', url: '/auth/state' });
+    expect(beforePairing.statusCode).toBe(200);
+    expect(beforePairing.json().data).toMatchObject({
+      paired: false,
+      bootstrapRequired: true,
+      trustedDeviceCount: 0
+    });
+
     const agentsDenied = await app.inject({ method: 'GET', url: '/agents' });
     expect(agentsDenied.statusCode).toBe(401);
 
-    const token = generateToken(config.tokenSecret).token;
+    const started = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Phone' }
+    });
+    expect(started.statusCode).toBe(200);
+    const challenge = started.json().data;
+
+    const completed = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: challenge.challengeId,
+        code: challenge.code,
+        deviceName: 'Phone'
+      }
+    });
+    expect(completed.statusCode).toBe(200);
+    expect(completed.json().data.device.name).toBe('Phone');
+
+    const cookies = completed.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
     const agents = await app.inject({
       method: 'GET',
       url: '/agents',
-      headers: { authorization: `Bearer ${token}` }
+      cookies: Object.fromEntries(
+        completed.cookies.map((cookie) => [cookie.name, cookie.value])
+      )
     });
+    expect(cookies).toContain('acpilot_device_id=');
     expect(agents.statusCode).toBe(200);
-    const body = agents.json();
-    expect(body.ok).toBe(true);
-    expect(body.data).toHaveLength(3);
+    expect(agents.json().data).toHaveLength(3);
 
     await app.close();
   });
 
-  it('verifies and refreshes tokens', async () => {
-    const app = await createServer(config);
-    const token = generateToken(config.tokenSecret).token;
+  it('exposes device auth state, logout, and revoke flows', async () => {
+    const app = await createServer(createTestConfig());
 
-    const verifyRes = await app.inject({
+    const started = await app.inject({
       method: 'POST',
-      url: '/auth/token/verify',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { token }
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Tablet' }
     });
-    expect(verifyRes.statusCode).toBe(200);
-    expect(verifyRes.json().data.valid).toBe(true);
+    const challenge = started.json().data;
+    const completed = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: challenge.challengeId,
+        code: challenge.code,
+        deviceName: 'Tablet'
+      }
+    });
 
-    const refreshRes = await app.inject({
-      method: 'POST',
-      url: '/auth/token/refresh',
-      headers: { authorization: `Bearer ${token}` }
+    const cookieHeader = extractCookieHeader(completed.headers['set-cookie'] as string[]);
+
+    const state = await app.inject({
+      method: 'GET',
+      url: '/auth/state',
+      headers: { cookie: cookieHeader }
     });
-    expect(refreshRes.statusCode).toBe(200);
-    expect(refreshRes.json().data.token).not.toBe(token);
+    expect(state.statusCode).toBe(200);
+    expect(state.json().data.paired).toBe(true);
+
+    const devices = await app.inject({
+      method: 'GET',
+      url: '/auth/devices',
+      headers: { cookie: cookieHeader }
+    });
+    expect(devices.statusCode).toBe(200);
+    const deviceId = devices.json().data[0].id;
+
+    const revoked = await app.inject({
+      method: 'POST',
+      url: `/auth/devices/${deviceId}/revoke`,
+      headers: { cookie: cookieHeader }
+    });
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.json().data.revokedAt).toBeTypeOf('number');
+
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/agents',
+      headers: { cookie: cookieHeader }
+    });
+    expect(denied.statusCode).toBe(401);
+
+    const logoutRes = await app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      headers: { cookie: cookieHeader }
+    });
+    expect(logoutRes.statusCode).toBe(200);
 
     await app.close();
   });
 
-  it('delegates session endpoints to session manager', async () => {
+  it('delegates session endpoints to session manager for trusted devices', async () => {
     const mockSession = {
       id: 's1',
       agentId: 'codex',
@@ -85,13 +157,31 @@ describe('daemon server', () => {
       listActive: vi.fn().mockReturnValue([mockSession])
     };
 
-    const app = await createServer(config, { sessionManager: sessionManager as never });
-    const token = generateToken(config.tokenSecret).token;
+    const app = await createServer(createTestConfig(), {
+      sessionManager: sessionManager as never
+    });
+
+    const started = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/start',
+      payload: { deviceName: 'Laptop' }
+    });
+    const challenge = started.json().data;
+    const completed = await app.inject({
+      method: 'POST',
+      url: '/auth/pair/complete',
+      payload: {
+        challengeId: challenge.challengeId,
+        code: challenge.code,
+        deviceName: 'Laptop'
+      }
+    });
+    const cookieHeader = extractCookieHeader(completed.headers['set-cookie'] as string[]);
 
     const created = await app.inject({
       method: 'POST',
       url: '/sessions',
-      headers: { authorization: `Bearer ${token}` },
+      headers: { cookie: cookieHeader },
       payload: { agentId: 'codex', cwd: '/tmp/project', workspaceType: 'local' }
     });
     expect(created.statusCode).toBe(200);
@@ -100,7 +190,7 @@ describe('daemon server', () => {
     const prompted = await app.inject({
       method: 'POST',
       url: '/sessions/s1/prompt',
-      headers: { authorization: `Bearer ${token}` },
+      headers: { cookie: cookieHeader },
       payload: { prompt: 'hello' }
     });
     expect(prompted.statusCode).toBe(200);
@@ -109,7 +199,7 @@ describe('daemon server', () => {
     const canceled = await app.inject({
       method: 'POST',
       url: '/sessions/s1/cancel',
-      headers: { authorization: `Bearer ${token}` }
+      headers: { cookie: cookieHeader }
     });
     expect(canceled.statusCode).toBe(200);
     expect(sessionManager.cancel).toHaveBeenCalledWith('s1');
@@ -117,7 +207,7 @@ describe('daemon server', () => {
     const logs = await app.inject({
       method: 'GET',
       url: '/sessions/s1/logs',
-      headers: { authorization: `Bearer ${token}` }
+      headers: { cookie: cookieHeader }
     });
     expect(logs.statusCode).toBe(200);
     expect(logs.json().data).toEqual(['line']);

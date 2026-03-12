@@ -1,7 +1,10 @@
 import type { IncomingMessage } from 'node:http';
 import type { WsClientMessage, WsMessage } from '@acpilot/shared';
 
-type TokenVerifier = (token: string) => { valid: boolean; expired: boolean };
+type SessionVerifier = (credentials: {
+  deviceId?: string;
+  deviceSecret?: string;
+}) => Promise<{ valid: boolean; revoked: boolean }>;
 
 interface SessionManagerLike {
   handlePermissionResponse(
@@ -31,7 +34,7 @@ interface ClientContext {
 
 export interface WsHandlerOptions {
   sessionManager: SessionManagerLike;
-  verifyToken: TokenVerifier;
+  verifySession: SessionVerifier;
 }
 
 export class WsHandler {
@@ -40,29 +43,7 @@ export class WsHandler {
   constructor(private readonly options: WsHandlerOptions) {}
 
   handleConnection(ws: WsLike, req: IncomingMessage): void {
-    const token = this.readTokenFromUrl(req.url);
-    const authenticated = token
-      ? this.options.verifyToken(token).valid
-      : false;
-
-    if (token && !authenticated) {
-      ws.close();
-      return;
-    }
-
-    const context: ClientContext = {
-      ws,
-      authenticated,
-      subscriptions: new Set<string>()
-    };
-    this.clients.add(context);
-
-    ws.on('message', (raw: string) => {
-      this.handleRawMessage(context, raw);
-    });
-    ws.on('close', () => {
-      this.handleDisconnect(ws);
-    });
+    void this.handleInitialConnection(ws, req);
   }
 
   broadcastToSession(sessionId: string, message: WsMessage): void {
@@ -149,19 +130,7 @@ export class WsHandler {
       return;
     }
     if (!context.authenticated) {
-      if (
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        'type' in parsed &&
-        (parsed as { type?: string }).type === 'auth' &&
-        'token' in parsed &&
-        typeof (parsed as { token?: unknown }).token === 'string'
-      ) {
-        const token = (parsed as { token: string }).token;
-        context.authenticated = this.options.verifyToken(token).valid;
-      } else {
-        context.ws.close();
-      }
+      void this.authenticateOverMessage(context, parsed);
       return;
     }
 
@@ -176,15 +145,100 @@ export class WsHandler {
     }
   }
 
-  private readTokenFromUrl(url?: string): string | null {
-    if (!url) {
+  private async handleInitialConnection(
+    ws: WsLike,
+    req: IncomingMessage
+  ): Promise<void> {
+    const credentials = this.readCredentials(req);
+    const authenticated = credentials
+      ? (await this.options.verifySession(credentials)).valid
+      : false;
+
+    const context: ClientContext = {
+      ws,
+      authenticated,
+      subscriptions: new Set<string>()
+    };
+    this.clients.add(context);
+
+    ws.on('message', (raw: string) => {
+      this.handleRawMessage(context, raw);
+    });
+    ws.on('close', () => {
+      this.handleDisconnect(ws);
+    });
+
+    if (credentials && !authenticated) {
+      ws.close();
+    }
+  }
+
+  private async authenticateOverMessage(
+    context: ClientContext,
+    parsed: unknown
+  ): Promise<void> {
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !('type' in parsed) ||
+      (parsed as { type?: string }).type !== 'auth'
+    ) {
+      context.ws.close();
+      return;
+    }
+
+    const authMessage = parsed as {
+      deviceId?: unknown;
+      deviceSecret?: unknown;
+    };
+    const deviceId =
+      typeof authMessage.deviceId === 'string'
+        ? authMessage.deviceId
+        : undefined;
+    const deviceSecret =
+      typeof authMessage.deviceSecret === 'string'
+        ? authMessage.deviceSecret
+        : undefined;
+    const result = await this.options.verifySession({
+      deviceId,
+      deviceSecret
+    });
+    context.authenticated = result.valid;
+    if (!result.valid) {
+      context.ws.close();
+    }
+  }
+
+  private readCredentials(req: IncomingMessage): {
+    deviceId?: string;
+    deviceSecret?: string;
+  } | null {
+    const cookieHeader = req.headers.cookie;
+    const cookies = new Map<string, string>();
+    if (cookieHeader) {
+      for (const part of cookieHeader.split(';')) {
+        const [rawName, ...rest] = part.trim().split('=');
+        if (!rawName || rest.length === 0) {
+          continue;
+        }
+        cookies.set(rawName, decodeURIComponent(rest.join('=')));
+      }
+    }
+
+    const headerDeviceId = req.headers['x-acpilot-device-id'];
+    const headerDeviceSecret = req.headers['x-acpilot-device-secret'];
+    const deviceId =
+      typeof headerDeviceId === 'string'
+        ? headerDeviceId
+        : cookies.get('acpilot_device_id');
+    const deviceSecret =
+      typeof headerDeviceSecret === 'string'
+        ? headerDeviceSecret
+        : cookies.get('acpilot_device_secret');
+
+    if (!deviceId || !deviceSecret) {
       return null;
     }
-    try {
-      const parsed = new URL(url, 'http://localhost');
-      return parsed.searchParams.get('token');
-    } catch {
-      return null;
-    }
+    return { deviceId, deviceSecret };
   }
 }

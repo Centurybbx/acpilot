@@ -6,7 +6,11 @@ function basename(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
-export function TopBar() {
+interface TopBarProps {
+  onForgetDevice: () => void;
+}
+
+export function TopBar({ onForgetDevice }: TopBarProps) {
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
   const currentSession = useSessionStore((state) =>
     state.sessions.find((session) => session.id === currentSessionId)
@@ -25,7 +29,11 @@ export function TopBar() {
         <div className="text-[11px] text-slate-500">MAIN BRANCH</div>
       </div>
 
-      <button type="button" className="rounded-lg p-2 text-slate-600">
+      <button
+        type="button"
+        className="rounded-lg p-2 text-slate-600"
+        onClick={onForgetDevice}
+      >
         <Settings size={18} />
       </button>
     </header>

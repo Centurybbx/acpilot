@@ -38,11 +38,10 @@ interface SessionStore {
   createSession: (
     agentId: string,
     cwd: string,
-    workspaceType: 'local' | 'worktree',
-    token: string
+    workspaceType: 'local' | 'worktree'
   ) => Promise<void>;
-  sendPrompt: (prompt: string, token: string) => Promise<void>;
-  cancelPrompt: (token: string) => Promise<void>;
+  sendPrompt: (prompt: string) => Promise<void>;
+  cancelPrompt: () => Promise<void>;
   respondPermission: (
     requestId: string,
     approved: boolean
@@ -77,8 +76,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   messages: new Map(),
   pendingPermissions: [],
 
-  createSession: async (agentId, cwd, workspaceType, token) => {
-    const session = await createSession(token, { agentId, cwd, workspaceType });
+  createSession: async (agentId, cwd, workspaceType) => {
+    const session = await createSession({ agentId, cwd, workspaceType });
     set((state) => {
       const nextMessages = new Map(state.messages);
       if (!nextMessages.has(session.id)) {
@@ -92,21 +91,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  sendPrompt: async (prompt, token) => {
+  sendPrompt: async (prompt) => {
     const { currentSessionId } = get();
     if (!currentSessionId) {
       throw new Error('No active session');
     }
     get().appendUserMessage(currentSessionId, prompt);
-    await sendPrompt(token, currentSessionId, prompt);
+    await sendPrompt(currentSessionId, prompt);
   },
 
-  cancelPrompt: async (token) => {
+  cancelPrompt: async () => {
     const { currentSessionId } = get();
     if (!currentSessionId) {
       return;
     }
-    await cancelPrompt(token, currentSessionId);
+    await cancelPrompt(currentSessionId);
   },
 
   respondPermission: (requestId, approved) => {

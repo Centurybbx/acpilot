@@ -10,6 +10,37 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface TrustedDevice {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastSeenAt: number;
+  revokedAt?: number;
+}
+
+export type AuthState =
+  | {
+      paired: true;
+      bootstrapRequired: false;
+      trustedDeviceCount: number;
+      device: TrustedDevice;
+    }
+  | {
+      paired: false;
+      bootstrapRequired: boolean;
+      trustedDeviceCount: number;
+    };
+
+export interface PairingChallenge {
+  challengeId: string;
+  code: string;
+  expiresAt: number;
+}
+
+export interface PairingCompletion {
+  device: TrustedDevice;
+}
+
 export interface AgentMessage {
   role: 'assistant';
   content: string;

@@ -26,7 +26,7 @@ describe('stores', () => {
       })
     );
 
-    await useAgentsStore.getState().fetchAgents('token');
+    await useAgentsStore.getState().fetchAgents();
 
     expect(useAgentsStore.getState().agents).toHaveLength(1);
     expect(useAgentsStore.getState().agents[0]?.id).toBe('codex');
@@ -58,10 +58,10 @@ describe('stores', () => {
       });
     vi.stubGlobal('fetch', fetchMock);
 
-    await useSessionStore.getState().createSession('codex', '/tmp/project', 'local', 'token');
+    await useSessionStore.getState().createSession('codex', '/tmp/project', 'local');
     expect(useSessionStore.getState().currentSessionId).toBe('s1');
 
-    await useSessionStore.getState().sendPrompt('hello', 'token');
+    await useSessionStore.getState().sendPrompt('hello');
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,

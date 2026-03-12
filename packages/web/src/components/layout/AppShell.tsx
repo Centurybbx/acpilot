@@ -9,9 +9,15 @@ interface AppShellProps {
   onSend: (prompt: string) => Promise<void>;
   onCancel: () => void;
   onReconnect: () => void;
+  onForgetDevice: () => void;
 }
 
-export function AppShell({ onSend, onCancel, onReconnect }: AppShellProps) {
+export function AppShell({
+  onSend,
+  onCancel,
+  onReconnect,
+  onForgetDevice
+}: AppShellProps) {
   const [keyboardOffset, setKeyboardOffset] = useState(0);
 
   useEffect(() => {
@@ -33,7 +39,7 @@ export function AppShell({ onSend, onCancel, onReconnect }: AppShellProps) {
   return (
     <div className="h-dvh bg-app-bg" style={{ paddingBottom: keyboardOffset }}>
       <div className="mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden border-x border-slate-200 bg-app-surface">
-        <TopBar />
+        <TopBar onForgetDevice={onForgetDevice} />
         <ConnectionBar onReconnect={onReconnect} />
         <ChatView />
         <ChatInput onSend={onSend} onCancel={onCancel} />

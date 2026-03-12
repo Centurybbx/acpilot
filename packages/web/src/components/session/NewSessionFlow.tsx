@@ -4,11 +4,7 @@ import { useSessionStore } from '../../stores/session.js';
 import { AgentSelector } from './AgentSelector.js';
 import { WorkspaceSelector } from './WorkspaceSelector.js';
 
-interface NewSessionFlowProps {
-  token: string;
-}
-
-export function NewSessionFlow({ token }: NewSessionFlowProps) {
+export function NewSessionFlow() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [cwd, setCwd] = useState('');
   const [workspaceType, setWorkspaceType] = useState<'local' | 'worktree'>('local');
@@ -19,8 +15,8 @@ export function NewSessionFlow({ token }: NewSessionFlowProps) {
   const createSession = useSessionStore((state) => state.createSession);
 
   useEffect(() => {
-    void fetchAgents(token);
-  }, [fetchAgents, token]);
+    void fetchAgents();
+  }, [fetchAgents]);
 
   const canCreate = useMemo(() => Boolean(agentId && cwd.trim()), [agentId, cwd]);
 
@@ -50,7 +46,7 @@ export function NewSessionFlow({ token }: NewSessionFlowProps) {
           }
           setIsCreating(true);
           try {
-            await createSession(agentId, cwd.trim(), workspaceType, token);
+            await createSession(agentId, cwd.trim(), workspaceType);
           } finally {
             setIsCreating(false);
           }

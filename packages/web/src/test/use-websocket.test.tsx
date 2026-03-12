@@ -38,7 +38,7 @@ class FakeWebSocket {
 }
 
 function Harness() {
-  useWebSocket('token-1');
+  useWebSocket(true);
   return null;
 }
 
@@ -80,7 +80,7 @@ describe('useWebSocket', () => {
     render(<Harness />);
 
     const first = FakeWebSocket.instances[0]!;
-    expect(first.url).toContain('/ws?token=token-1');
+    expect(first.url).toContain('/ws');
 
     first.readyState = FakeWebSocket.OPEN;
     first.emit('open');

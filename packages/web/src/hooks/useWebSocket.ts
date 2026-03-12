@@ -6,12 +6,12 @@ import { useSessionStore } from '../stores/session.js';
 
 const MAX_RETRY_DELAY = 30_000;
 
-function getWsUrl(token: string): string {
+function getWsUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${protocol}://${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+  return `${protocol}://${window.location.host}/ws`;
 }
 
-export function useWebSocket(token: string | null) {
+export function useWebSocket(enabled: boolean) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const progressTimerRef = useRef<number | null>(null);
@@ -29,7 +29,7 @@ export function useWebSocket(token: string | null) {
   const setCapabilities = useAgentsStore((state) => state.setCapabilities);
 
   const connect = useCallback(
-    (authToken: string) => {
+    () => {
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
@@ -49,7 +49,7 @@ export function useWebSocket(token: string | null) {
       setStatus(reconnectAttemptRef.current === 0 ? 'connecting' : 'reconnecting');
       setReconnectProgress(0);
 
-      const ws = new WebSocket(getWsUrl(authToken));
+      const ws = new WebSocket(getWsUrl());
       socketRef.current = ws;
       setSocket(ws);
 
@@ -142,7 +142,7 @@ export function useWebSocket(token: string | null) {
         reconnectAttemptRef.current += 1;
         const delay = Math.min(2 ** (reconnectAttemptRef.current - 1) * 1000, MAX_RETRY_DELAY);
         reconnectTimerRef.current = window.setTimeout(() => {
-          connect(authToken);
+          connect();
         }, delay);
       });
     },
@@ -158,10 +158,10 @@ export function useWebSocket(token: string | null) {
   );
 
   useEffect(() => {
-    if (!token) {
+    if (!enabled) {
       return;
     }
-    connect(token);
+    connect();
 
     return () => {
       if (reconnectTimerRef.current) {
@@ -177,7 +177,7 @@ export function useWebSocket(token: string | null) {
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, [connect, token]);
+  }, [connect, enabled]);
 
   return {
     send(message: WsClientMessage) {
@@ -187,10 +187,10 @@ export function useWebSocket(token: string | null) {
       socketRef.current.send(JSON.stringify(message));
     },
     reconnectNow() {
-      if (!token) {
+      if (!enabled) {
         return;
       }
-      connect(token);
+      connect();
     }
   };
 }

@@ -1,19 +1,24 @@
-import type { ApiResponse, Session, WsClientMessage } from '@acpilot/shared';
+import type {
+  ApiResponse,
+  AuthState,
+  PairingChallenge,
+  PairingCompletion,
+  Session,
+  TrustedDevice,
+  WsClientMessage
+} from '@acpilot/shared';
 
 async function requestJson<T>(
   path: string,
-  init: RequestInit,
-  token?: string
+  init: RequestInit
 ): Promise<T> {
   const headers = new Headers(init.headers ?? {});
   headers.set('content-type', 'application/json');
-  if (token) {
-    headers.set('authorization', `Bearer ${token}`);
-  }
 
   const response = await fetch(path, {
     ...init,
-    headers
+    headers,
+    credentials: 'include'
   });
   const payload = (await response.json()) as ApiResponse<T>;
 
@@ -31,79 +36,82 @@ export interface AgentDef {
   mvpLevel?: 'ga' | 'beta';
 }
 
-export async function fetchAgents(token: string): Promise<AgentDef[]> {
-  return requestJson<AgentDef[]>('/agents', { method: 'GET' }, token);
+export async function getAuthState(): Promise<AuthState> {
+  return requestJson<AuthState>('/auth/state', { method: 'GET' });
 }
 
-export async function createSession(
-  token: string,
-  payload: { agentId: string; cwd: string; workspaceType: 'local' | 'worktree' }
-): Promise<Session> {
-  return requestJson<Session>(
-    '/sessions',
-    {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    },
-    token
-  );
+export async function startPairing(deviceName?: string): Promise<PairingChallenge> {
+  return requestJson<PairingChallenge>('/auth/pair/start', {
+    method: 'POST',
+    body: JSON.stringify({ deviceName })
+  });
+}
+
+export async function completePairing(payload: {
+  challengeId: string;
+  code: string;
+  deviceName?: string;
+}): Promise<PairingCompletion> {
+  return requestJson<PairingCompletion>('/auth/pair/complete', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function logout(): Promise<{ loggedOut: boolean }> {
+  return requestJson<{ loggedOut: boolean }>('/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export async function fetchTrustedDevices(): Promise<TrustedDevice[]> {
+  return requestJson<TrustedDevice[]>('/auth/devices', { method: 'GET' });
+}
+
+export async function revokeTrustedDevice(deviceId: string): Promise<TrustedDevice> {
+  return requestJson<TrustedDevice>(`/auth/devices/${deviceId}/revoke`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export async function fetchAgents(): Promise<AgentDef[]> {
+  return requestJson<AgentDef[]>('/agents', { method: 'GET' });
+}
+
+export async function createSession(payload: {
+  agentId: string;
+  cwd: string;
+  workspaceType: 'local' | 'worktree';
+}): Promise<Session> {
+  return requestJson<Session>('/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function sendPrompt(
-  token: string,
   sessionId: string,
   prompt: string
 ): Promise<{ accepted: boolean }> {
-  return requestJson<{ accepted: boolean }>(
-    `/sessions/${sessionId}/prompt`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ prompt })
-    },
-    token
-  );
+  return requestJson<{ accepted: boolean }>(`/sessions/${sessionId}/prompt`, {
+    method: 'POST',
+    body: JSON.stringify({ prompt })
+  });
 }
 
 export async function cancelPrompt(
-  token: string,
   sessionId: string
 ): Promise<{ canceled: boolean }> {
-  return requestJson<{ canceled: boolean }>(
-    `/sessions/${sessionId}/cancel`,
-    {
-      method: 'POST',
-      body: JSON.stringify({})
-    },
-    token
-  );
+  return requestJson<{ canceled: boolean }>(`/sessions/${sessionId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
 }
 
-export async function verifyToken(token: string): Promise<{ valid: boolean; expired: boolean }> {
-  return requestJson<{ valid: boolean; expired: boolean }>(
-    '/auth/token/verify',
-    {
-      method: 'POST',
-      body: JSON.stringify({ token })
-    },
-    token
-  );
-}
-
-export async function refreshToken(
-  token: string
-): Promise<{ token: string; expiresAt: number }> {
-  return requestJson<{ token: string; expiresAt: number }>(
-    '/auth/token/refresh',
-    {
-      method: 'POST',
-      body: JSON.stringify({})
-    },
-    token
-  );
-}
-
-export async function fetchSessionLogs(token: string, sessionId: string): Promise<string[]> {
-  return requestJson<string[]>(`/sessions/${sessionId}/logs`, { method: 'GET' }, token);
+export async function fetchSessionLogs(sessionId: string): Promise<string[]> {
+  return requestJson<string[]>(`/sessions/${sessionId}/logs`, { method: 'GET' });
 }
 
 export function sendWsMessage(ws: WebSocket | null, message: WsClientMessage): void {

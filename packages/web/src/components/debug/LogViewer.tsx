@@ -2,16 +2,15 @@ import { useEffect, useState } from 'react';
 import { fetchSessionLogs } from '../../lib/api.js';
 
 interface LogViewerProps {
-  token: string;
   sessionId: string;
 }
 
-export function LogViewer({ token, sessionId }: LogViewerProps) {
+export function LogViewer({ sessionId }: LogViewerProps) {
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
-    void fetchSessionLogs(token, sessionId).then((items) => {
+    void fetchSessionLogs(sessionId).then((items) => {
       if (active) {
         setLogs(items);
       }
@@ -19,7 +18,7 @@ export function LogViewer({ token, sessionId }: LogViewerProps) {
     return () => {
       active = false;
     };
-  }, [sessionId, token]);
+  }, [sessionId]);
 
   return (
     <div className="space-y-2 p-3">
