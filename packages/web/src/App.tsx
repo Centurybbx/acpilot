@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AuthState } from '@acpilot/shared';
 import { AppShell } from './components/layout/AppShell.js';
 import { NewSessionFlow } from './components/session/NewSessionFlow.js';
@@ -152,18 +152,7 @@ export default function App() {
 
   const { reconnectNow } = useWebSocket(Boolean(authState?.paired));
 
-  async function forgetCurrentDevice() {
-    await logout();
-    useSessionStore.setState({
-      currentSessionId: null,
-      sessions: [],
-      lastRestoredSessionId: null,
-      lastRestoredAt: null
-    });
-    await refreshAuthState();
-  }
-
-  async function refreshAuthState() {
+  const refreshAuthState = useCallback(async () => {
     setAuthError(null);
     try {
       const nextState = await getAuthState();
@@ -186,7 +175,18 @@ export default function App() {
     } catch (error) {
       setAuthError((error as Error).message);
     }
-  }
+  }, []);
+
+  const forgetCurrentDevice = useCallback(async () => {
+    await logout();
+    useSessionStore.setState({
+      currentSessionId: null,
+      sessions: [],
+      lastRestoredSessionId: null,
+      lastRestoredAt: null
+    });
+    await refreshAuthState();
+  }, [refreshAuthState]);
 
   useEffect(() => {
     void refreshAuthState();
