@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useConnectionStore } from '../stores/connection.js';
@@ -68,7 +68,9 @@ describe('useWebSocket', () => {
         }
       ],
       messages,
-      pendingPermissions: []
+      pendingPermissions: [],
+      lastRestoredSessionId: null,
+      lastRestoredAt: null
     });
     useConnectionStore.setState({
       status: 'disconnected',
@@ -107,5 +109,39 @@ describe('useWebSocket', () => {
 
     expect(second.sent.some((item) => item.includes('session:resume'))).toBe(true);
     expect(second.sent.some((item) => item.includes('"lastSeq":3'))).toBe(true);
+  });
+
+  it('subscribes newly created sessions without forcing restore', async () => {
+    render(<Harness />);
+
+    const first = FakeWebSocket.instances[0]!;
+    first.readyState = FakeWebSocket.OPEN;
+    first.emit('open');
+
+    act(() => {
+      useSessionStore.setState((state) => ({
+        ...state,
+        sessions: [
+          ...state.sessions,
+          {
+            id: 's2',
+            agentId: 'claude',
+            cwd: '/tmp/project-b',
+            workspaceType: 'local',
+            status: 'active',
+            capabilities: {},
+            config: {},
+            eventSeq: 0,
+            createdAt: Date.now(),
+            lastActiveAt: Date.now()
+          }
+        ],
+        messages: new Map([...state.messages, ['s2', []]])
+      }));
+    });
+
+    expect(first.sent.some((item) => item.includes('"type":"session:subscribe"'))).toBe(true);
+    expect(first.sent.some((item) => item.includes('"sessionId":"s2"'))).toBe(true);
+    expect(first.sent.some((item) => item.includes('"type":"session:resume"') && item.includes('"sessionId":"s2"'))).toBe(false);
   });
 });

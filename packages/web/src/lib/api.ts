@@ -92,6 +92,10 @@ export async function createSession(payload: {
   });
 }
 
+export async function fetchSessions(): Promise<Session[]> {
+  return requestJson<Session[]>('/sessions', { method: 'GET' });
+}
+
 export async function sendPrompt(
   sessionId: string,
   prompt: string,

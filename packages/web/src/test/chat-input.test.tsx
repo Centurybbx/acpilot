@@ -30,7 +30,9 @@ describe('ChatInput', () => {
         }
       ],
       messages: new Map(),
-      pendingPermissions: []
+      pendingPermissions: [],
+      lastRestoredSessionId: null,
+      lastRestoredAt: null
     });
     useAgentsStore.setState({ agents: [], capabilities });
   });

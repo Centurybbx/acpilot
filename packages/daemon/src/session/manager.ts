@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { nanoid } from 'nanoid';
 import type {
   AcpEvent,
@@ -50,8 +52,26 @@ type SessionRecord = Session & {
 export interface SessionManagerOptions {
   eventLog: EventLog;
   createRuntime?: (agentId: string, cwd: string) => Promise<AgentRuntime>;
+  resolveBranch?: (cwd: string) => Promise<string | undefined>;
   onSessionEvent?: (sessionId: string, message: WsMessage) => void;
   processOptions?: AgentProcessOptions;
+}
+
+const execFileAsync = promisify(execFile);
+
+async function resolveGitBranch(cwd: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd
+    });
+    const branch = stdout.trim();
+    if (!branch || branch === 'HEAD') {
+      return undefined;
+    }
+    return branch;
+  } catch {
+    return undefined;
+  }
 }
 
 export class SessionManager {
@@ -62,6 +82,7 @@ export class SessionManager {
   private readonly pendingRuntimes = new Map<string, Promise<AgentRuntime>>();
   private readonly subscribedRuntimeIds = new Set<string>();
   private readonly createRuntimeFn: (agentId: string, cwd: string) => Promise<AgentRuntime>;
+  private readonly resolveBranchFn: (cwd: string) => Promise<string | undefined>;
 
   constructor(private readonly options: SessionManagerOptions) {
     this.createRuntimeFn =
@@ -79,6 +100,7 @@ export class SessionManager {
         const bridge = new AcpBridge(process);
         return { bridge, process };
       });
+    this.resolveBranchFn = options.resolveBranch ?? resolveGitBranch;
   }
 
   async create(
@@ -94,12 +116,19 @@ export class SessionManager {
     const remote = await runtime.bridge.sessionNew(cwd, {});
     const config = this.buildDefaultConfig(capabilities);
     await this.applyConfigDiff(runtime.bridge, remote.sessionId, capabilities, {}, config);
+    let branch: string | undefined;
+    try {
+      branch = await this.resolveBranchFn(cwd);
+    } catch {
+      branch = undefined;
+    }
     const id = nanoid();
     const now = Date.now();
     const session: SessionRecord = {
       id,
       agentId,
       cwd,
+      ...(branch ? { branch } : {}),
       workspaceType,
       status: 'active',
       capabilities,

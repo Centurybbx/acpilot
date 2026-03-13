@@ -1,11 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ChatInput } from '../chat/ChatInput.js';
 import { ChatView } from '../chat/ChatView.js';
+import { useSessionStore } from '../../stores/session.js';
+import { LogViewer } from '../debug/LogViewer.js';
 import { ConnectionBar } from './ConnectionBar.js';
 import { HomeInput } from './HomeInput.js';
 import { HomeView } from './HomeView.js';
 import { StatusBar } from './StatusBar.js';
 import { TopBar } from './TopBar.js';
+
+function basename(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
 
 interface AppShellProps {
   onSend: (prompt: string) => Promise<void>;
@@ -13,6 +20,7 @@ interface AppShellProps {
   onReconnect: () => void;
   onForgetDevice: () => void;
   mode?: 'home' | 'chat';
+  homeContent?: ReactNode;
 }
 
 export function AppShell({
@@ -20,10 +28,16 @@ export function AppShell({
   onCancel,
   onReconnect,
   onForgetDevice,
-  mode = 'chat'
+  mode = 'chat',
+  homeContent
 }: AppShellProps) {
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLogViewerOpen, setIsLogViewerOpen] = useState(false);
+  const currentSessionId = useSessionStore((state) => state.currentSessionId);
+  const sessions = useSessionStore((state) => state.sessions);
+  const selectSession = useSessionStore((state) => state.selectSession);
+  const visibleSessions = sessions.filter((session) => session.status !== 'closed');
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -59,15 +73,48 @@ export function AppShell({
           }`}
         >
           <div className="flex h-full flex-col p-4">
-            <h2 className="mb-4 text-lg font-bold">Threads</h2>
-            <div className="space-y-2">
-              <div className="rounded-lg bg-slate-100 p-2 text-sm font-medium text-slate-700">
-                Project A / Repo 1
-              </div>
-              <div className="rounded-lg p-2 text-sm text-slate-600 hover:bg-slate-50">
-                Project B / Repo 2
-              </div>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-lg font-bold">Threads</h2>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  selectSession(null);
+                  setIsSidebarOpen(false);
+                }}
+              >
+                New
+              </button>
             </div>
+            {visibleSessions.length > 0 ? (
+              <div className="space-y-2">
+                {visibleSessions.map((session) => {
+                  const active = session.id === currentSessionId;
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+                        active
+                          ? 'bg-slate-100 text-slate-900'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                      onClick={() => {
+                        selectSession(session.id);
+                        setIsSidebarOpen(false);
+                      }}
+                    >
+                      <div className="text-sm font-medium">{basename(session.cwd)}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">{session.agentId}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-500">
+                No active sessions yet.
+              </div>
+            )}
           </div>
         </div>
 
@@ -79,14 +126,30 @@ export function AppShell({
         <ConnectionBar onReconnect={onReconnect} />
 
         {mode === 'home' ? (
-          <>
-            <div className="flex-1 overflow-y-auto">
-              <HomeView />
-            </div>
-            <HomeInput onSend={onSend} />
-          </>
+          homeContent ? (
+            <div className="flex-1 overflow-y-auto">{homeContent}</div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto">
+                <HomeView />
+              </div>
+              <HomeInput onSend={onSend} />
+            </>
+          )
         ) : (
           <>
+            {currentSessionId ? (
+              <div className="border-b border-slate-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setIsLogViewerOpen((open) => !open)}
+                >
+                  Raw Logs
+                </button>
+              </div>
+            ) : null}
+            {isLogViewerOpen && currentSessionId ? <LogViewer sessionId={currentSessionId} /> : null}
             <ChatView />
             <ChatInput onSend={onSend} onCancel={onCancel} />
           </>

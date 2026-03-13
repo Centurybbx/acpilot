@@ -25,7 +25,9 @@ describe('advanced ui behaviors', () => {
         }
       ],
       messages: new Map(),
-      pendingPermissions: []
+      pendingPermissions: [],
+      lastRestoredSessionId: null,
+      lastRestoredAt: null
     });
     useAgentsStore.setState({
       agents: [],

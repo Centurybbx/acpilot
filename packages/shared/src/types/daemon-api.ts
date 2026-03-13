@@ -99,6 +99,10 @@ export type WsClientMessage =
       approved: boolean;
     }
   | {
+      type: 'session:subscribe';
+      sessionId: string;
+    }
+  | {
       type: 'session:resume';
       sessionId: string;
       lastSeq: number;

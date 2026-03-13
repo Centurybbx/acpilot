@@ -15,6 +15,7 @@ export interface Session {
   id: string;
   agentId: string;
   cwd: string;
+  branch?: string;
   workspaceType: 'local' | 'worktree';
   status: SessionStatus;
   capabilities: AgentCapabilities;

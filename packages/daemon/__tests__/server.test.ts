@@ -438,6 +438,15 @@ describe('daemon server', () => {
     expect(logs.statusCode).toBe(200);
     expect(logs.json().data).toEqual(['line']);
 
+    const sessions = await app.inject({
+      method: 'GET',
+      url: '/sessions',
+      headers: { cookie: cookieHeader }
+    });
+    expect(sessions.statusCode).toBe(200);
+    expect(sessions.json().data).toEqual([mockSession]);
+    expect(sessionManager.listActive).toHaveBeenCalled();
+
     await app.close();
   });
 });

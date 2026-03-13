@@ -17,6 +17,7 @@ export function useWebSocket(enabled: boolean) {
   const progressTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef(0);
   const connectionIdRef = useRef(0);
+  const subscribedSessionsRef = useRef(new Set<string>());
 
   const setStatus = useConnectionStore((state) => state.setStatus);
   const setReconnectProgress = useConnectionStore((state) => state.setReconnectProgress);
@@ -25,6 +26,7 @@ export function useWebSocket(enabled: boolean) {
   const updateLastSeq = useConnectionStore((state) => state.updateLastSeq);
 
   const applyWsMessage = useSessionStore((state) => state.applyWsMessage);
+  const sessions = useSessionStore((state) => state.sessions);
 
   const setCapabilities = useAgentsStore((state) => state.setCapabilities);
 
@@ -50,6 +52,7 @@ export function useWebSocket(enabled: boolean) {
       setReconnectProgress(0);
 
       const ws = new WebSocket(getWsUrl());
+      subscribedSessionsRef.current = new Set();
       socketRef.current = ws;
       setSocket(ws);
 
@@ -76,6 +79,7 @@ export function useWebSocket(enabled: boolean) {
             lastSeq
           };
           ws.send(JSON.stringify(resume));
+          subscribedSessionsRef.current.add(session.id);
         }
       });
 
@@ -119,6 +123,7 @@ export function useWebSocket(enabled: boolean) {
         setStatus('reconnecting');
         setSocket(null);
         socketRef.current = null;
+        subscribedSessionsRef.current = new Set();
 
         const reason =
           document.visibilityState === 'hidden'
@@ -176,8 +181,30 @@ export function useWebSocket(enabled: boolean) {
       setSocket(null);
       socketRef.current?.close();
       socketRef.current = null;
+      subscribedSessionsRef.current = new Set();
     };
   }, [connect, enabled]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    for (const session of sessions) {
+      if (subscribedSessionsRef.current.has(session.id)) {
+        continue;
+      }
+
+      socket.send(
+        JSON.stringify({
+          type: 'session:subscribe',
+          sessionId: session.id
+        } satisfies WsClientMessage)
+      );
+      subscribedSessionsRef.current.add(session.id);
+    }
+  }, [sessions]);
 
   return {
     send(message: WsClientMessage) {

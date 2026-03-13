@@ -35,6 +35,8 @@ interface SessionStore {
   sessions: Session[];
   messages: Map<string, ChatMessage[]>;
   pendingPermissions: PermissionRequest[];
+  lastRestoredSessionId: string | null;
+  lastRestoredAt: number | null;
 
   createSession: (
     agentId: string,
@@ -43,6 +45,8 @@ interface SessionStore {
   ) => Promise<void>;
   sendPrompt: (prompt: string) => Promise<void>;
   cancelPrompt: () => Promise<void>;
+  hydrateSessions: (sessions: Session[]) => void;
+  selectSession: (sessionId: string | null) => void;
   updateSessionConfig: (config: SessionConfig) => void;
   respondPermission: (
     requestId: string,
@@ -77,6 +81,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   messages: new Map(),
   pendingPermissions: [],
+  lastRestoredSessionId: null,
+  lastRestoredAt: null,
 
   createSession: async (agentId, cwd, workspaceType) => {
     const session = await createSession({ agentId, cwd, workspaceType });
@@ -109,6 +115,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return;
     }
     await cancelPrompt(currentSessionId);
+  },
+
+  hydrateSessions: (sessions) => {
+    set((state) => {
+      const nextMessages = new Map(state.messages);
+      for (const session of sessions) {
+        if (!nextMessages.has(session.id)) {
+          nextMessages.set(session.id, []);
+        }
+      }
+
+      const hasCurrentSession = sessions.some((session) => session.id === state.currentSessionId);
+      return {
+        sessions,
+        currentSessionId: hasCurrentSession
+          ? state.currentSessionId
+          : (sessions[0]?.id ?? null),
+        messages: nextMessages
+      };
+    });
+  },
+
+  selectSession: (sessionId) => {
+    set({ currentSessionId: sessionId });
   },
 
   updateSessionConfig: (config) => {
@@ -246,6 +276,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     if (message.type === 'agent:status') {
       get().updateSessionStatus(message.sessionId, message.status);
+      return;
+    }
+    if (message.type === 'session:restored') {
+      set({
+        lastRestoredSessionId: message.sessionId,
+        lastRestoredAt: Date.now()
+      });
+      return;
+    }
+    if (message.type === 'session:expired') {
+      get().updateSessionStatus(message.sessionId, 'closed');
     }
   }
 }));

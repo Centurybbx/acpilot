@@ -18,7 +18,8 @@ export function TopBar({ onForgetDevice, onMenuClick, mode = 'chat' }: TopBarPro
     state.sessions.find((session) => session.id === currentSessionId)
   );
 
-  const projectName = currentSession ? basename(currentSession.cwd) : 'ac-pilot-core';
+  const projectName = currentSession ? basename(currentSession.cwd) : 'ACpilot';
+  const branchName = currentSession?.branch?.trim();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/90 px-3 backdrop-blur">
@@ -31,7 +32,11 @@ export function TopBar({ onForgetDevice, onMenuClick, mode = 'chat' }: TopBarPro
           <Menu size={20} />
         </button>
       ) : (
-        <button type="button" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100">
+        <button
+          type="button"
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+          onClick={onMenuClick}
+        >
           <Folder size={18} />
         </button>
       )}
@@ -42,7 +47,7 @@ export function TopBar({ onForgetDevice, onMenuClick, mode = 'chat' }: TopBarPro
         ) : (
           <>
             <div className="text-sm font-semibold text-slate-900">{projectName}</div>
-            <div className="text-[11px] text-slate-500">MAIN BRANCH</div>
+            {branchName ? <div className="text-[11px] text-slate-500">{branchName}</div> : null}
           </>
         )}
       </div>

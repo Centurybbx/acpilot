@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AuthState } from '@acpilot/shared';
 import { AppShell } from './components/layout/AppShell.js';
+import { NewSessionFlow } from './components/session/NewSessionFlow.js';
 import { useWebSocket } from './hooks/useWebSocket.js';
 import {
   completePairing,
+  fetchSessions,
   getAuthState,
   logout,
   startPairing
 } from './lib/api.js';
-import { useConnectionStore } from './stores/connection.js';
 import { useSessionStore } from './stores/session.js';
 
 function LoadingGate() {
@@ -145,15 +146,20 @@ export default function App() {
 
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
   const sessions = useSessionStore((state) => state.sessions);
+  const lastRestoredAt = useSessionStore((state) => state.lastRestoredAt);
   const sendPrompt = useSessionStore((state) => state.sendPrompt);
   const cancelPrompt = useSessionStore((state) => state.cancelPrompt);
 
   const { reconnectNow } = useWebSocket(Boolean(authState?.paired));
-  const connectionStatus = useConnectionStore((state) => state.status);
 
   async function forgetCurrentDevice() {
     await logout();
-    useSessionStore.setState({ currentSessionId: null, sessions: [] });
+    useSessionStore.setState({
+      currentSessionId: null,
+      sessions: [],
+      lastRestoredSessionId: null,
+      lastRestoredAt: null
+    });
     await refreshAuthState();
   }
 
@@ -161,6 +167,21 @@ export default function App() {
     setAuthError(null);
     try {
       const nextState = await getAuthState();
+
+      if (nextState.paired) {
+        const activeSessions = await fetchSessions();
+        useSessionStore.getState().hydrateSessions(activeSessions);
+      } else {
+        useSessionStore.setState({
+          currentSessionId: null,
+          sessions: [],
+          messages: new Map(),
+          pendingPermissions: [],
+          lastRestoredSessionId: null,
+          lastRestoredAt: null
+        });
+      }
+
       setAuthState(nextState);
     } catch (error) {
       setAuthError((error as Error).message);
@@ -172,7 +193,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (connectionStatus !== 'connected' || !authState?.paired) {
+    if (!lastRestoredAt) {
       return;
     }
     setRestoredToastVisible(true);
@@ -182,7 +203,7 @@ export default function App() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [authState?.paired, connectionStatus]);
+  }, [lastRestoredAt]);
 
   const content = useMemo(() => {
     if (authError) {
@@ -227,11 +248,9 @@ export default function App() {
           onForgetDevice={() => {
             void forgetCurrentDevice();
           }}
-          onSend={async () => {
-            // Placeholder: This should create a session using selected CLI/Model
-            console.log('Home input sent - session creation logic needed');
-          }}
+          onSend={async (_prompt) => {}}
           onCancel={() => {}}
+          homeContent={<NewSessionFlow />}
         />
       );
     }

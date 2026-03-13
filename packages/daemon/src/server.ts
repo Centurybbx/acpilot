@@ -325,6 +325,8 @@ export async function createServer(
 
   app.get('/agents', async () => responseOk(getAgents()));
 
+  app.get('/sessions', async () => responseOk(sessionManager.listActive()));
+
   app.post<{
     Body: { agentId: string; cwd: string; workspaceType: 'local' | 'worktree' };
   }>(

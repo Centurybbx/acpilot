@@ -124,4 +124,41 @@ describe('ws handler', () => {
       .find((item) => item.type === 'session:expired');
     expect(expired?.sessionId).toBe('s1');
   });
+
+  it('tracks subscriptions without triggering resume side effects', async () => {
+    const manager = {
+      handlePermissionResponse: vi.fn().mockResolvedValue(undefined),
+      getEventLog: () => new EventLog(),
+      tryResumeSession: vi.fn().mockResolvedValue('resumed')
+    };
+
+    const handler = new WsHandler({
+      sessionManager: manager as never,
+      verifySession: vi.fn().mockResolvedValue({ valid: true, revoked: false })
+    });
+
+    const ws = new FakeSocket();
+    handler.handleConnection(
+      ws as never,
+      {
+        headers: { cookie: 'acpilot_device_id=device-1; acpilot_device_secret=secret-1' }
+      } as never
+    );
+    await Promise.resolve();
+
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'session:subscribe', sessionId: 's2' })
+    );
+    await Promise.resolve();
+
+    handler.broadcastToSession('s2', {
+      type: 'agent:status',
+      sessionId: 's2',
+      status: 'active'
+    });
+
+    expect(manager.tryResumeSession).not.toHaveBeenCalled();
+    expect(ws.messages.some((item) => JSON.parse(item).sessionId === 's2')).toBe(true);
+  });
 });

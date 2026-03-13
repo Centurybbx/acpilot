@@ -49,6 +49,7 @@ describe('session manager', () => {
     const manager = new SessionManager({
       eventLog,
       createRuntime: vi.fn().mockResolvedValue(runtime),
+      resolveBranch: vi.fn().mockResolvedValue('feature/red-green'),
       onSessionEvent: (sessionId, message) => {
         wsEvents.push({ sessionId, type: message.type });
       }
@@ -57,6 +58,7 @@ describe('session manager', () => {
     const session = await manager.create('codex', '/tmp/project', 'local');
     expect(session.agentId).toBe('codex');
     expect(session.status).toBe('active');
+    expect(session.branch).toBe('feature/red-green');
     expect(session.config).toEqual({ model: 'gpt-5', search: false, mode: 'auto' });
     expect(runtime.bridge.initialize).toHaveBeenCalled();
     expect(runtime.bridge.sessionNew).toHaveBeenCalledWith('/tmp/project', {});
@@ -265,5 +267,17 @@ describe('session manager', () => {
       'session/load',
       expect.anything()
     );
+  });
+
+  it('returns undefined branch metadata when git branch lookup fails', async () => {
+    const runtime = makeRuntime();
+    const manager = new SessionManager({
+      eventLog: new EventLog(),
+      createRuntime: vi.fn().mockResolvedValue(runtime)
+    });
+
+    const session = await manager.create('codex', '/tmp/project', 'local');
+
+    expect(session.branch).toBeUndefined();
   });
 });

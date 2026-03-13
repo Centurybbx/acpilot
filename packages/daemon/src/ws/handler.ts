@@ -79,6 +79,10 @@ export class WsHandler {
       context.subscriptions.add(message.sessionId);
       return;
     }
+    if (message.type === 'session:subscribe') {
+      context.subscriptions.add(message.sessionId);
+      return;
+    }
     if (message.type === 'session:resume') {
       context.subscriptions.add(message.sessionId);
       const missed = this.options.sessionManager
@@ -137,6 +141,7 @@ export class WsHandler {
     const message = parsed as WsClientMessage;
     if (
       message.type === 'permission:response' ||
+      message.type === 'session:subscribe' ||
       message.type === 'session:resume'
     ) {
       void this.handleClientMessage(context.ws, message).catch(() => {

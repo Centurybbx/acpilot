@@ -36,7 +36,9 @@ describe('ChatView', () => {
       currentSessionId: 's1',
       sessions: [],
       messages,
-      pendingPermissions: []
+      pendingPermissions: [],
+      lastRestoredSessionId: null,
+      lastRestoredAt: null
     });
   });
 
