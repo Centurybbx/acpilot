@@ -46,6 +46,13 @@ describe('TopBar', () => {
     expect(screen.queryByText('MAIN BRANCH')).not.toBeInTheDocument();
   });
 
+  it('exposes accessible labels for icon-only actions', () => {
+    render(<TopBar mode="chat" onForgetDevice={vi.fn()} onMenuClick={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Forget device' })).toBeInTheDocument();
+  });
+
   it('hides branch fallback text when the session has no branch metadata', () => {
     render(<TopBar mode="chat" onForgetDevice={vi.fn()} onMenuClick={vi.fn()} />);
 

@@ -44,6 +44,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const ACP_PROTOCOL_VERSION = 1;
 const CLIENT_NAME = 'acpilot-daemon';
 const CLIENT_VERSION = '0.1.0';
+const MAX_RAW_LOG_LINES = 500;
 
 export class AcpBridge {
   private nextId = 1;
@@ -57,7 +58,7 @@ export class AcpBridge {
       this.handleStdoutLine(line);
     });
     this.process.on('stderr:line', (line: string) => {
-      this.rawLogs.push(line);
+      this.appendRawLog(`stderr: ${line}`);
     });
   }
 
@@ -134,11 +135,16 @@ export class AcpBridge {
     return { sessionId: result.sessionId };
   }
 
-  async sessionPrompt(sessionId: string, prompt: string): Promise<void> {
-    await this.request('session/prompt', {
+  async sessionPrompt(sessionId: string, prompt: string): Promise<{ stopReason?: string }> {
+    const response = await this.request('session/prompt', {
       sessionId,
       prompt: [{ type: 'text', text: prompt }]
     });
+    const result = response.result as { stopReason?: unknown } | undefined;
+    return {
+      stopReason:
+        typeof result?.stopReason === 'string' ? result.stopReason : undefined
+    };
   }
 
   async sessionSetConfigOption(
@@ -205,7 +211,7 @@ export class AcpBridge {
   }
 
   private write(data: AcpRequest): void {
-    this.process.writeRaw(`${JSON.stringify(data)}\n`);
+    this.writeJsonRpc(data);
   }
 
   private notify(method: string, params?: Record<string, unknown>): void {
@@ -217,18 +223,18 @@ export class AcpBridge {
   }
 
   private writeRaw(data: Record<string, unknown>): void {
-    this.process.writeRaw(`${JSON.stringify(data)}\n`);
+    this.writeJsonRpc(data);
   }
 
   private handleStdoutLine(line: string): void {
     if (!line.trim()) {
       return;
     }
+    this.appendRawLog(`in: ${line}`);
     let parsed: JsonRpcIncoming;
     try {
       parsed = JSON.parse(line) as JsonRpcIncoming;
     } catch {
-      this.rawLogs.push(`stdout: ${line}`);
       return;
     }
 
@@ -399,7 +405,7 @@ export class AcpBridge {
       try {
         handler(event);
       } catch (error) {
-        this.rawLogs.push(`event handler error: ${(error as Error).message}`);
+        this.appendRawLog(`event handler error: ${(error as Error).message}`);
       }
     }
   }
@@ -465,5 +471,18 @@ export class AcpBridge {
         ...(data === undefined ? {} : { data })
       }
     });
+  }
+
+  private writeJsonRpc(data: object): void {
+    const line = JSON.stringify(data);
+    this.appendRawLog(`out: ${line}`);
+    this.process.writeRaw(`${line}\n`);
+  }
+
+  private appendRawLog(line: string): void {
+    this.rawLogs.push(line);
+    if (this.rawLogs.length > MAX_RAW_LOG_LINES) {
+      this.rawLogs.splice(0, this.rawLogs.length - MAX_RAW_LOG_LINES);
+    }
   }
 }

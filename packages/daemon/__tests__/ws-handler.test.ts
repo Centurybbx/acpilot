@@ -24,6 +24,14 @@ describe('ws handler', () => {
       sessionId: 's1',
       status: 'active'
     });
+    eventLog.append('s1', {
+      type: 'user:message',
+      sessionId: 's1',
+      content: {
+        messageId: 'u1',
+        content: 'hello from user'
+      }
+    });
 
     const manager = {
       handlePermissionResponse: vi.fn().mockResolvedValue(undefined),
@@ -49,6 +57,7 @@ describe('ws handler', () => {
     await Promise.resolve();
     expect(ws.messages.length).toBeGreaterThanOrEqual(1);
     expect(JSON.parse(ws.messages[0]!).type).toBe('agent:status');
+    expect(ws.messages.map((item) => JSON.parse(item)).some((item) => item.type === 'user:message')).toBe(true);
     expect(manager.tryResumeSession).toHaveBeenCalledWith('s1');
     const restored = ws.messages
       .map((item) => JSON.parse(item))

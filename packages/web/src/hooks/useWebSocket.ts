@@ -72,7 +72,7 @@ export function useWebSocket(enabled: boolean) {
         const { lastSeqMap } = useConnectionStore.getState();
         const { sessions } = useSessionStore.getState();
         for (const session of sessions) {
-          const lastSeq = lastSeqMap.get(session.id) ?? session.eventSeq ?? 0;
+          const lastSeq = lastSeqMap.get(session.id) ?? 0;
           const resume: WsClientMessage = {
             type: 'session:resume',
             sessionId: session.id,
@@ -88,12 +88,14 @@ export function useWebSocket(enabled: boolean) {
           return;
         }
         const message = JSON.parse(event.data) as WsMessage;
-        if (message.type === 'agent:message') {
+        const messageSeq =
+          'seq' in message && typeof message.seq === 'number' ? message.seq : null;
+        if (messageSeq !== null) {
           const currentSeq = useConnectionStore.getState().lastSeqMap.get(message.sessionId) ?? 0;
-          if (message.seq <= currentSeq) {
+          if (messageSeq <= currentSeq) {
             return;
           }
-          updateLastSeq(message.sessionId, message.seq);
+          updateLastSeq(message.sessionId, messageSeq);
         }
         if (message.type === 'capabilities:update') {
           setCapabilities(message.sessionId, message.capabilities);

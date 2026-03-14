@@ -60,63 +60,61 @@ export function AppShell({
       <div className="relative mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden border-x border-slate-200 bg-app-surface">
         {/* Sidebar Overlay */}
         {isSidebarOpen ? (
-          <div
-            className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        ) : null}
+          <>
+            <div
+              className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity"
+              onClick={() => setIsSidebarOpen(false)}
+            />
 
-        {/* Sidebar Drawer */}
-        <div
-          className={`absolute bottom-0 left-0 top-0 z-50 w-64 transform bg-white shadow-xl transition-transform duration-300 ease-in-out ${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <div className="flex h-full flex-col p-4">
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-lg font-bold">Threads</h2>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                onClick={() => {
-                  selectSession(null);
-                  setIsSidebarOpen(false);
-                }}
-              >
-                New
-              </button>
+            {/* Sidebar Drawer */}
+            <div className="absolute bottom-0 left-0 top-0 z-50 w-64 bg-white shadow-xl">
+              <div className="flex h-full flex-col p-4">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold">Threads</h2>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      selectSession(null);
+                      setIsSidebarOpen(false);
+                    }}
+                  >
+                    New
+                  </button>
+                </div>
+                {visibleSessions.length > 0 ? (
+                  <div className="space-y-2">
+                    {visibleSessions.map((session) => {
+                      const active = session.id === currentSessionId;
+                      return (
+                        <button
+                          key={session.id}
+                          type="button"
+                          className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+                            active
+                              ? 'bg-slate-100 text-slate-900'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                          onClick={() => {
+                            selectSession(session.id);
+                            setIsSidebarOpen(false);
+                          }}
+                        >
+                          <div className="text-sm font-medium">{basename(session.cwd)}</div>
+                          <div className="mt-0.5 text-xs text-slate-500">{session.agentId}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-500">
+                    No active sessions yet.
+                  </div>
+                )}
+              </div>
             </div>
-            {visibleSessions.length > 0 ? (
-              <div className="space-y-2">
-                {visibleSessions.map((session) => {
-                  const active = session.id === currentSessionId;
-                  return (
-                    <button
-                      key={session.id}
-                      type="button"
-                      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
-                        active
-                          ? 'bg-slate-100 text-slate-900'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                      onClick={() => {
-                        selectSession(session.id);
-                        setIsSidebarOpen(false);
-                      }}
-                    >
-                      <div className="text-sm font-medium">{basename(session.cwd)}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">{session.agentId}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-500">
-                No active sessions yet.
-              </div>
-            )}
-          </div>
-        </div>
+          </>
+        ) : null}
 
         <TopBar
           onForgetDevice={onForgetDevice}

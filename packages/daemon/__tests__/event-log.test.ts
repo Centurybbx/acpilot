@@ -26,6 +26,7 @@ describe('event log', () => {
     expect(log.getLatestSeq('s2')).toBe(1);
     expect(log.getAfter('s1', 1)).toHaveLength(1);
     expect(log.getAfter('s1', 1)[0]?.seq).toBe(2);
+    expect(log.getAfter('s1', 1)[0]?.message).toMatchObject({ seq: 2 });
     expect(log.getAfter('missing', 0)).toEqual([]);
   });
 });

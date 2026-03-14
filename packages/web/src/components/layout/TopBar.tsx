@@ -26,6 +26,7 @@ export function TopBar({ onForgetDevice, onMenuClick, mode = 'chat' }: TopBarPro
       {mode === 'home' ? (
         <button
           type="button"
+          aria-label="Open sidebar"
           className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
           onClick={onMenuClick}
         >
@@ -34,6 +35,7 @@ export function TopBar({ onForgetDevice, onMenuClick, mode = 'chat' }: TopBarPro
       ) : (
         <button
           type="button"
+          aria-label="Open sidebar"
           className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
           onClick={onMenuClick}
         >
@@ -54,6 +56,7 @@ export function TopBar({ onForgetDevice, onMenuClick, mode = 'chat' }: TopBarPro
 
       <button
         type="button"
+        aria-label="Forget device"
         className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
         onClick={onForgetDevice}
       >

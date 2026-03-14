@@ -47,6 +47,16 @@ export interface AgentMessage {
   toolCalls?: ToolCallInfo[];
 }
 
+export interface UserMessage {
+  messageId: string;
+  content: string;
+}
+
+export interface AgentTurnComplete {
+  sessionId: string;
+  stopReason?: string;
+}
+
 export interface PermissionRequest {
   id: string;
   description: string;
@@ -58,22 +68,37 @@ export type WsMessage =
   | {
       type: 'agent:message';
       sessionId: string;
-      seq: number;
+      seq?: number;
       content: AgentMessage;
+    }
+  | {
+      type: 'user:message';
+      sessionId: string;
+      seq?: number;
+      content: UserMessage;
     }
   | {
       type: 'agent:status';
       sessionId: string;
+      seq?: number;
       status: SessionStatus;
+    }
+  | {
+      type: 'agent:turn_complete';
+      sessionId: string;
+      seq?: number;
+      stopReason?: string;
     }
   | {
       type: 'permission:request';
       sessionId: string;
+      seq?: number;
       request: PermissionRequest;
     }
   | {
       type: 'capabilities:update';
       sessionId: string;
+      seq?: number;
       capabilities: AgentCapabilities;
     }
   | {

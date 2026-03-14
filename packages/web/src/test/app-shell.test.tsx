@@ -66,7 +66,7 @@ describe('AppShell sidebar', () => {
       />
     );
 
-    await user.click(screen.getAllByRole('button')[0]!);
+    await user.click(screen.getByRole('button', { name: 'Open sidebar' }));
 
     expect(screen.getByText('project-a')).toBeInTheDocument();
     expect(screen.getByText('project-b')).toBeInTheDocument();
@@ -100,5 +100,20 @@ describe('AppShell sidebar', () => {
 
     expect(await screen.findByText('Raw ACP Logs')).toBeInTheDocument();
     expect(screen.getByText('stderr line 1')).toBeInTheDocument();
+  });
+
+  it('removes hidden sidebar controls from the accessibility tree', () => {
+    render(
+      <AppShell
+        mode="chat"
+        onSend={vi.fn()}
+        onCancel={vi.fn()}
+        onReconnect={vi.fn()}
+        onForgetDevice={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'project-a codex' })).not.toBeInTheDocument();
   });
 });

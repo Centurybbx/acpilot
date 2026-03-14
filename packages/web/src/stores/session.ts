@@ -16,7 +16,16 @@ import {
 export type ChatMessage =
   | {
       id: string;
-      role: 'user' | 'assistant';
+      role: 'user';
+      content: string;
+      optimistic?: boolean;
+      isStreaming?: boolean;
+      toolCalls?: ToolCallInfo[];
+      timestamp: number;
+    }
+  | {
+      id: string;
+      role: 'assistant';
       content: string;
       isStreaming?: boolean;
       toolCalls?: ToolCallInfo[];
@@ -60,6 +69,7 @@ interface SessionStore {
     isStreaming?: boolean,
     toolCalls?: ToolCallInfo[]
   ) => void;
+  finalizeStreamingMessage: (sessionId: string) => void;
   appendPermission: (sessionId: string, request: PermissionRequest) => void;
   updateSessionStatus: (sessionId: string, status: Session['status']) => void;
   applyWsMessage: (message: WsMessage) => void;
@@ -187,34 +197,57 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   appendUserMessage: (sessionId, content) => {
     set((state) => ({
-      messages: withMessage(state, sessionId, (items) => [
-        ...items,
-        {
-          id: nanoid(),
-          role: 'user',
-          content,
-          timestamp: Date.now()
-        }
-      ])
+      messages: withMessage(state, sessionId, (items) => {
+        const optimisticId = `optimistic:${nanoid()}`;
+        return [
+          ...items,
+          {
+            id: optimisticId,
+            role: 'user',
+            content,
+            optimistic: true,
+            timestamp: Date.now()
+          }
+        ];
+      })
     }));
   },
 
   appendAgentMessage: (sessionId, content, isStreaming, toolCalls) => {
     set((state) => ({
       messages: withMessage(state, sessionId, (items) => {
-        if (isStreaming && items.length > 0) {
+        if (items.length > 0) {
           const last = items[items.length - 1];
           if (last?.role === 'assistant' && last.isStreaming) {
-            const mergedContent =
-              content.startsWith(last.content)
-                ? content
-                : `${last.content}${content}`;
-            const updated: ChatMessage = {
-              ...last,
-              content: mergedContent,
-              isStreaming: true
-            };
-            return [...items.slice(0, -1), updated];
+            if (isStreaming) {
+              const mergedContent =
+                content.startsWith(last.content)
+                  ? content
+                  : `${last.content}${content}`;
+              const updated: ChatMessage = {
+                ...last,
+                content: mergedContent,
+                isStreaming: true,
+                toolCalls: toolCalls ?? last.toolCalls
+              };
+              return [...items.slice(0, -1), updated];
+            }
+
+            const canFinalizeExisting =
+              !content ||
+              content === last.content ||
+              content.startsWith(last.content) ||
+              last.content.startsWith(content);
+
+            if (canFinalizeExisting) {
+              const updated: ChatMessage = {
+                ...last,
+                content: content.length > last.content.length ? content : last.content,
+                isStreaming: false,
+                toolCalls: toolCalls ?? last.toolCalls
+              };
+              return [...items.slice(0, -1), updated];
+            }
           }
         }
         return [
@@ -228,6 +261,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             timestamp: Date.now()
           }
         ];
+      })
+    }));
+  },
+
+  finalizeStreamingMessage: (sessionId) => {
+    set((state) => ({
+      messages: withMessage(state, sessionId, (items) => {
+        for (let index = items.length - 1; index >= 0; index -= 1) {
+          const item = items[index];
+          if (item?.role !== 'assistant' || !item.isStreaming) {
+            continue;
+          }
+
+          return [
+            ...items.slice(0, index),
+            {
+              ...item,
+              isStreaming: false
+            },
+            ...items.slice(index + 1)
+          ];
+        }
+
+        return items;
       })
     }));
   },
@@ -261,6 +318,52 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   applyWsMessage: (message) => {
+    if (message.type === 'user:message') {
+      set((state) => ({
+        messages: withMessage(state, message.sessionId, (items) => {
+          const existingById = items.findIndex(
+            (item) => item.role === 'user' && item.id === message.content.messageId
+          );
+          if (existingById >= 0) {
+            return items;
+          }
+
+          const optimisticIndex = items.findIndex(
+            (item) =>
+              item.role === 'user' &&
+              item.optimistic &&
+              item.content === message.content.content
+          );
+
+          if (optimisticIndex >= 0) {
+            const optimistic = items[optimisticIndex];
+            if (optimistic?.role !== 'user') {
+              return items;
+            }
+            return [
+              ...items.slice(0, optimisticIndex),
+              {
+                ...optimistic,
+                id: message.content.messageId,
+                optimistic: false
+              },
+              ...items.slice(optimisticIndex + 1)
+            ];
+          }
+
+          return [
+            ...items,
+            {
+              id: message.content.messageId,
+              role: 'user',
+              content: message.content.content,
+              timestamp: Date.now()
+            }
+          ];
+        })
+      }));
+      return;
+    }
     if (message.type === 'agent:message') {
       get().appendAgentMessage(
         message.sessionId,
@@ -272,6 +375,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     if (message.type === 'permission:request') {
       get().appendPermission(message.sessionId, message.request);
+      return;
+    }
+    if (message.type === 'agent:turn_complete') {
+      get().finalizeStreamingMessage(message.sessionId);
       return;
     }
     if (message.type === 'agent:status') {

@@ -19,7 +19,7 @@ import { EventLog } from './event-log.js';
 export interface AcpBridgeLike {
   initialize(): Promise<AgentCapabilities>;
   sessionNew(cwd: string, config?: object): Promise<{ sessionId: string }>;
-  sessionPrompt(sessionId: string, prompt: string): Promise<void>;
+  sessionPrompt(sessionId: string, prompt: string): Promise<{ stopReason?: string }>;
   sessionSetConfigOption(sessionId: string, name: string, value: SessionConfigValue): Promise<void>;
   sessionSetMode(sessionId: string, mode: string): Promise<void>;
   sessionCancel(sessionId: string): Promise<void>;
@@ -165,7 +165,23 @@ export class SessionManager {
       nextConfig
     );
     session.config = nextConfig;
-    await session.runtime.bridge.sessionPrompt(session.remoteSessionId, prompt);
+    this.emitSessionEvent(sessionId, {
+      type: 'user:message',
+      sessionId,
+      content: {
+        messageId: nanoid(),
+        content: prompt
+      }
+    });
+    const completion = await session.runtime.bridge.sessionPrompt(
+      session.remoteSessionId,
+      prompt
+    );
+    this.emitSessionEvent(sessionId, {
+      type: 'agent:turn_complete',
+      sessionId,
+      stopReason: completion.stopReason
+    });
     session.lastActiveAt = Date.now();
   }
 
@@ -383,8 +399,7 @@ export class SessionManager {
     if (session) {
       session.eventSeq = seq;
     }
-    const outbound =
-      message.type === 'agent:message' ? { ...message, seq } : message;
+    const outbound = { ...message, seq } as WsMessage;
     this.options.onSessionEvent?.(sessionId, outbound);
   }
 

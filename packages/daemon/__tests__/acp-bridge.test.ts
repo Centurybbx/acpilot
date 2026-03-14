@@ -54,7 +54,10 @@ describe('acp bridge', () => {
     proc.emitStderr('warn line');
 
     expect(seen).toEqual(['available_commands_update']);
-    expect(bridge.getRawLogs()).toContain('warn line');
+    expect(bridge.getRawLogs()).toContain('stderr: warn line');
+    expect(bridge.getRawLogs()).toContain(
+      'in: {"jsonrpc":"2.0","method":"available_commands_update","params":{}}'
+    );
   });
 
   it('maps initialize and session helpers to ACP methods', async () => {
@@ -108,7 +111,7 @@ describe('acp bridge', () => {
         result: { stopReason: 'end_turn' }
       })
     );
-    await expect(promptPromise).resolves.toBeUndefined();
+    await expect(promptPromise).resolves.toEqual({ stopReason: 'end_turn' });
 
     await bridge.sessionCancel('remote-1');
     const cancelReq = JSON.parse(proc.writes[3]);
@@ -291,5 +294,30 @@ describe('acp bridge', () => {
         }
       }
     });
+  });
+
+  it('records raw outbound and inbound json-rpc traffic', async () => {
+    const proc = new FakeProcess();
+    const bridge = new AcpBridge(proc);
+
+    const pending = bridge.request('initialize', { client: 'acpilot' });
+    const outbound = JSON.parse(proc.writes[0] ?? '{}');
+
+    proc.emitStdout(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: outbound.id,
+        result: { capabilities: {} }
+      })
+    );
+
+    await pending;
+
+    expect(bridge.getRawLogs()).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('out: {"jsonrpc":"2.0","id":1,"method":"initialize"'),
+        expect.stringContaining('in: {"jsonrpc":"2.0","id":1,"result":{"capabilities":{}}}')
+      ])
+    );
   });
 });

@@ -17,7 +17,7 @@ function makeRuntime() {
     bridge: {
       initialize: vi.fn().mockResolvedValue(capabilities),
       sessionNew: vi.fn().mockResolvedValue({ sessionId: 'remote-session-1' }),
-      sessionPrompt: vi.fn().mockResolvedValue(undefined),
+      sessionPrompt: vi.fn().mockResolvedValue({ stopReason: 'end_turn' }),
       sessionSetConfigOption: vi.fn().mockResolvedValue(undefined),
       sessionSetMode: vi.fn().mockResolvedValue(undefined),
       sessionCancel: vi.fn().mockResolvedValue(undefined),
@@ -91,6 +91,8 @@ describe('session manager', () => {
       true
     );
     expect(runtime.bridge.sessionSetMode).toHaveBeenCalledWith('remote-session-1', 'manual');
+    expect(wsEvents.some((evt) => evt.type === 'user:message')).toBe(true);
+    expect(wsEvents.some((evt) => evt.type === 'agent:turn_complete')).toBe(true);
 
     await manager.handlePermissionResponse(session.id, 'perm-1', true);
     expect(runtime.bridge.respondPermission).toHaveBeenCalledWith('perm-1', true);
@@ -141,6 +143,33 @@ describe('session manager', () => {
         (message as { type: string }).type === 'agent:message'
     ) as { type: 'agent:message'; seq: number } | undefined;
     expect(pushed?.seq).toBeGreaterThan(0);
+  });
+
+  it('records user prompts in the event log for resume replay', async () => {
+    const runtime = makeRuntime();
+    const eventLog = new EventLog();
+
+    const manager = new SessionManager({
+      eventLog,
+      createRuntime: vi.fn().mockResolvedValue(runtime)
+    });
+
+    const session = await manager.create('codex', '/tmp/project', 'local');
+    await manager.prompt(session.id, 'restore this user message');
+
+    const userEvent = eventLog
+      .getAfter(session.id, 0)
+      .find((item) => item.message.type === 'user:message');
+
+    expect(userEvent?.message).toMatchObject({
+      type: 'user:message',
+      sessionId: session.id,
+      seq: expect.any(Number),
+      content: {
+        content: 'restore this user message',
+        messageId: expect.any(String)
+      }
+    });
   });
 
   it('returns logs and active sessions', async () => {

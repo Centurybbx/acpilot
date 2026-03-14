@@ -12,8 +12,7 @@ export class EventLog {
   append(sessionId: string, message: WsMessage): number {
     const existing = this.events.get(sessionId) ?? [];
     const seq = existing.length + 1;
-    const normalized =
-      message.type === 'agent:message' ? { ...message, seq } : message;
+    const normalized = { ...message, seq } as WsMessage;
     existing.push({
       seq,
       timestamp: Date.now(),
