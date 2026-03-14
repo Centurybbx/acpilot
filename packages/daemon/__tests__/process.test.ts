@@ -18,7 +18,8 @@ const baseAgent: AgentDef = {
   displayName: 'Codex',
   command: 'codex-acp',
   args: [],
-  mvpLevel: 'ga'
+  mvpLevel: 'ga',
+  available: true
 };
 
 describe('agent process', () => {

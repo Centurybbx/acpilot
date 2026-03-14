@@ -90,7 +90,7 @@ export function useWebSocket(enabled: boolean) {
         const message = JSON.parse(event.data) as WsMessage;
         const messageSeq =
           'seq' in message && typeof message.seq === 'number' ? message.seq : null;
-        if (messageSeq !== null) {
+        if (messageSeq !== null && 'sessionId' in message) {
           const currentSeq = useConnectionStore.getState().lastSeqMap.get(message.sessionId) ?? 0;
           if (messageSeq <= currentSeq) {
             return;

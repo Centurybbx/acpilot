@@ -169,10 +169,12 @@ function useWebSocket() {
 
 首次打开或无活跃会话时显示：
 
-1. Agent 选择卡片列表（`AgentSelector.tsx`）
-   - 每个 Agent 一张卡片，显示名称 + MVP 等级标签
+1. Engine 信息卡（自动选择）
+   - 显示当前可用 Agent 名称 + MVP 等级标签
+   - 初始化阶段自动探测并持久化可用命令路径，不在 Home 里手动切换 CLI
 2. Workspace 选择（`WorkspaceSelector.tsx`）
-   - 输入绝对路径或从最近路径列表选择
+   - 输入绝对路径
+   - 记住上次使用的 workspace 路径与类型
    - 类型选择：local / worktree
 3. 确认创建按钮
 

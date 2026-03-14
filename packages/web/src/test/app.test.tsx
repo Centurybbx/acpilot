@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App.js';
 import * as api from '../lib/api.js';
+import { NEW_SESSION_DRAFT_STORAGE_KEY } from '../lib/session-draft.js';
 import { useAgentsStore } from '../stores/agents.js';
 import { useConnectionStore } from '../stores/connection.js';
 import { useSessionStore } from '../stores/session.js';
@@ -127,5 +128,8 @@ describe('App empty state', () => {
       expect(fetchSessions).toHaveBeenCalled();
     });
     expect(useSessionStore.getState().sessions[0]?.id).toBe('s9');
+    expect(window.localStorage.getItem(NEW_SESSION_DRAFT_STORAGE_KEY)).toContain(
+      '/tmp/hydrated-project'
+    );
   });
 });

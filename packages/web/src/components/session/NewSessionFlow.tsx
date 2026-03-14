@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Terminal } from 'lucide-react';
 import { sendWsMessage } from '../../lib/api.js';
+import {
+  loadNewSessionDraft,
+  saveNewSessionDraft
+} from '../../lib/session-draft.js';
 import { useConnectionStore } from '../../stores/connection.js';
 import { useAgentsStore } from '../../stores/agents.js';
 import { useSessionStore } from '../../stores/session.js';
-import { AgentSelector } from './AgentSelector.js';
 import { WorkspaceSelector } from './WorkspaceSelector.js';
 
-const STARTER_PROMPTS = {
-  debug: 'Help me debug this CLI issue. Reproduce the problem, inspect the relevant code path, explain the root cause, and propose or apply a fix.',
-  docs: 'Help me write documentation for this project. First inspect the current codebase structure, then draft clear documentation that explains setup, architecture, and the main workflows.'
-} as const;
-
 export function NewSessionFlow() {
-  const [agentId, setAgentId] = useState<string | null>(null);
-  const [cwd, setCwd] = useState('');
-  const [workspaceType, setWorkspaceType] = useState<'local' | 'worktree'>('local');
+  const [initialDraft] = useState(() => loadNewSessionDraft());
+  const [agentId, setAgentId] = useState<string | null>(initialDraft.agentId);
+  const [cwd, setCwd] = useState(initialDraft.cwd);
+  const [workspaceType, setWorkspaceType] = useState<'local' | 'worktree'>(
+    initialDraft.workspaceType
+  );
   const [starterPrompt, setStarterPrompt] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -24,45 +24,72 @@ export function NewSessionFlow() {
   const createSession = useSessionStore((state) => state.createSession);
   const sendPrompt = useSessionStore((state) => state.sendPrompt);
   const socket = useConnectionStore((state) => state.socket);
+  const availableAgents = useMemo(
+    () => agents.filter((agent) => agent.available !== false),
+    [agents]
+  );
 
   useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
 
-  const canCreate = useMemo(() => Boolean(agentId && cwd.trim()), [agentId, cwd]);
+  useEffect(() => {
+    if (agents.length === 0) {
+      return;
+    }
+
+    if (availableAgents.length === 0) {
+      setAgentId(null);
+      return;
+    }
+
+    setAgentId((currentAgentId) => {
+      if (
+        currentAgentId &&
+        availableAgents.some((agent) => agent.id === currentAgentId)
+      ) {
+        return currentAgentId;
+      }
+
+      return availableAgents[0]?.id ?? null;
+    });
+  }, [agents, availableAgents]);
+
+  useEffect(() => {
+    saveNewSessionDraft({ agentId, cwd, workspaceType });
+  }, [agentId, cwd, workspaceType]);
+
+  const selectedAgent = useMemo(
+    () => availableAgents.find((agent) => agent.id === agentId) ?? null,
+    [agentId, availableAgents]
+  );
+  const canCreate = useMemo(() => Boolean(selectedAgent && cwd.trim()), [selectedAgent, cwd]);
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center gap-4 px-4 py-6">
       <h1 className="text-xl font-semibold text-slate-900">New Session</h1>
 
-      <AgentSelector
-        agents={agents}
-        selectedAgentId={agentId}
-        onSelect={(id) => setAgentId(id)}
-      />
-
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          className="group flex flex-col items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow"
-          onClick={() => setStarterPrompt(STARTER_PROMPTS.debug)}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-            <Terminal size={18} />
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+          Engine
+        </div>
+        {selectedAgent ? (
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-slate-900">{selectedAgent.displayName}</div>
+              <div className="text-sm text-slate-500">Auto-selected and remembered on this device.</div>
+            </div>
+            {selectedAgent.mvpLevel ? (
+              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-500 shadow-sm">
+                {selectedAgent.mvpLevel}
+              </span>
+            ) : null}
           </div>
-          <span className="font-semibold text-slate-900">Debug CLI</span>
-        </button>
-
-        <button
-          type="button"
-          className="group flex flex-col items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow"
-          onClick={() => setStarterPrompt(STARTER_PROMPTS.docs)}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-            <FileText size={18} />
+        ) : (
+          <div className="mt-2 text-sm text-amber-700">
+            No local engine is available yet. Start the daemon with a configured agent first.
           </div>
-          <span className="font-semibold text-slate-900">Write Docs</span>
-        </button>
+        )}
       </div>
 
       <WorkspaceSelector
@@ -86,12 +113,20 @@ export function NewSessionFlow() {
         type="button"
         disabled={!canCreate || isCreating}
         onClick={async () => {
-          if (!agentId || !cwd.trim()) {
+          if (!selectedAgent || !cwd.trim()) {
             return;
           }
           setIsCreating(true);
           try {
-            await createSession(agentId, cwd.trim(), workspaceType);
+            const nextCwd = cwd.trim();
+
+            saveNewSessionDraft({
+              agentId: selectedAgent.id,
+              cwd: nextCwd,
+              workspaceType
+            });
+
+            await createSession(selectedAgent.id, nextCwd, workspaceType);
             const currentSessionId = useSessionStore.getState().currentSessionId;
             if (currentSessionId) {
               sendWsMessage(socket, {

@@ -92,6 +92,9 @@ export class SessionManager {
         if (!agent) {
           throw new Error(`unknown agent: ${agentId}`);
         }
+        if (!agent.available) {
+          throw new Error(agent.unavailableReason ?? `agent unavailable: ${agentId}`);
+        }
         const process = new AgentProcess(agent, {
           crashRestartLimit: options.processOptions?.crashRestartLimit ?? 3,
           sessionIdleTimeoutMs: options.processOptions?.sessionIdleTimeoutMs ?? 30 * 60 * 1000

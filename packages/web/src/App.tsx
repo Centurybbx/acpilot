@@ -10,6 +10,7 @@ import {
   logout,
   startPairing
 } from './lib/api.js';
+import { saveNewSessionDraft } from './lib/session-draft.js';
 import { useSessionStore } from './stores/session.js';
 
 function LoadingGate() {
@@ -149,6 +150,10 @@ export default function App() {
   const lastRestoredAt = useSessionStore((state) => state.lastRestoredAt);
   const sendPrompt = useSessionStore((state) => state.sendPrompt);
   const cancelPrompt = useSessionStore((state) => state.cancelPrompt);
+  const currentSession = useMemo(
+    () => sessions.find((session) => session.id === currentSessionId) ?? null,
+    [currentSessionId, sessions]
+  );
 
   const { reconnectNow } = useWebSocket(Boolean(authState?.paired));
 
@@ -205,6 +210,18 @@ export default function App() {
     };
   }, [lastRestoredAt]);
 
+  useEffect(() => {
+    if (!currentSession) {
+      return;
+    }
+
+    saveNewSessionDraft({
+      agentId: currentSession.agentId,
+      cwd: currentSession.cwd,
+      workspaceType: currentSession.workspaceType
+    });
+  }, [currentSession]);
+
   const content = useMemo(() => {
     if (authError) {
       return (
@@ -237,9 +254,6 @@ export default function App() {
         />
       );
     }
-
-    const currentSession = sessions.find((session) => session.id === currentSessionId);
-
     if (!currentSessionId) {
       return (
         <AppShell
@@ -303,6 +317,7 @@ export default function App() {
     authError,
     authState,
     cancelPrompt,
+    currentSession,
     currentSessionId,
     forgetCurrentDevice,
     reconnectNow,

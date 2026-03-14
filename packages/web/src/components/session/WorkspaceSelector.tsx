@@ -21,6 +21,7 @@ export function WorkspaceSelector({
           placeholder="/Users/you/project"
           className="rounded-lg border border-slate-300 px-3 py-2"
         />
+        <span className="text-xs text-slate-500">The last workspace path is remembered on this device.</span>
       </label>
 
       <label className="grid gap-1 text-sm text-slate-700">

@@ -61,6 +61,7 @@ codex login status
 
 - 不需要全局 `-g` 安装，daemon 会优先使用仓库内依赖里的可执行文件。
 - `codex-acp` 找不到会导致 `Create Session` 失败。
+- daemon 启动时会自动探测可用命令，并把解析出的路径持久化到 `acpilot-agents.json`。
 - 可通过环境变量覆盖命令路径：
 
 ```bash
@@ -75,6 +76,7 @@ ACPILOT_CODEX_COMMAND=/absolute/path/to/codex-acp pnpm --filter @acpilot/daemon 
 ### Copilot
 
 - 需本机已有 `copilot` 命令且支持 `--acp`。
+- 如需自定义 agent 路径持久化位置，可设置 `ACPILOT_AGENT_STORE_PATH`。
 - 可通过环境变量覆盖命令路径：
 
 ```bash

@@ -4,6 +4,7 @@ export interface DaemonConfig {
   port: number;
   host: string;
   authStorePath: string;
+  agentStorePath: string;
   pairingCodeTtlMs: number;
   agentConcurrencyLimit: number;
   sessionIdleTimeoutMs: number;
@@ -16,6 +17,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaemonConfig {
     port: Number(env.ACPILOT_PORT ?? DEFAULT_DAEMON_PORT),
     host: env.ACPILOT_HOST ?? DEFAULT_DAEMON_HOST,
     authStorePath: env.ACPILOT_AUTH_STORE_PATH ?? 'acpilot-auth.json',
+    agentStorePath: env.ACPILOT_AGENT_STORE_PATH ?? 'acpilot-agents.json',
     pairingCodeTtlMs: Number(env.ACPILOT_PAIRING_CODE_TTL_MS ?? 10 * 60 * 1000),
     agentConcurrencyLimit: Number(env.ACPILOT_AGENT_CONCURRENCY_LIMIT ?? 2),
     sessionIdleTimeoutMs: Number(env.ACPILOT_SESSION_IDLE_TIMEOUT_MS ?? 30 * 60 * 1000),

@@ -98,7 +98,7 @@
 
 交付：
 
-- 把 `Debug CLI` / `Write Docs` 改成 `NewSessionFlow` 内的 starter prompt 预设
+- 去掉 `Debug CLI` / `Write Docs` 快捷卡片，保留可编辑的 starter prompt
 - 创建 session 时若填写 starter prompt，则自动发送首条 prompt
 - 在 shell 中给当前 session 增加 raw logs 入口
 

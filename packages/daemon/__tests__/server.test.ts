@@ -6,6 +6,7 @@ import { DeviceAuthManager } from '../src/auth/device.js';
 function createTestConfig() {
   return loadConfig({
     ACPILOT_AUTH_STORE_PATH: `/tmp/acpilot-auth-test-${Date.now()}-${Math.random()}.json`,
+    ACPILOT_AGENT_STORE_PATH: `/tmp/acpilot-agents-test-${Date.now()}-${Math.random()}.json`,
     ACPILOT_AUDIT_LOG_PATH: '/tmp/acpilot-audit-test.log'
   });
 }

@@ -35,6 +35,8 @@ export interface AgentDef {
   command?: string;
   args?: string[];
   mvpLevel?: 'ga' | 'beta';
+  available?: boolean;
+  unavailableReason?: string;
 }
 
 export async function getAuthState(): Promise<AuthState> {

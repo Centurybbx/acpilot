@@ -10,7 +10,7 @@ import type {
   SessionConfig,
   TrustedDevice
 } from '@acpilot/shared';
-import { getAgents } from './agent/registry.js';
+import { getAgents, initializeAgentRegistry } from './agent/registry.js';
 import {
   DeviceAuthManager,
   type DeviceVerificationResult
@@ -147,6 +147,7 @@ export async function createServer(
   config: DaemonConfig,
   deps: CreateServerDeps = {}
 ) {
+  await initializeAgentRegistry(config.agentStorePath);
   const app = Fastify({ logger: true });
   const authManager =
     deps.authManager ??
